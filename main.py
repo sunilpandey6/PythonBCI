@@ -11,7 +11,7 @@ from typing import Deque, List, Optional
 import numpy as np
 
 from flicker import FlickerResult, SSVEPDetector
-from prediction import ObjectClassifier
+from prediction import ActiveClassifier, ImageryClassifier
 from protocol import BCICode, build_message
 
 logging.basicConfig(
@@ -45,7 +45,8 @@ class BCIState:
     TRAIN_ACTIVE_OBJ2 = "TRAIN_ACTIVE_OBJ2"
     TRAIN_IMAGERY_OBJ1 = "TRAIN_IMAGERY_OBJ1"
     TRAIN_IMAGERY_OBJ2 = "TRAIN_IMAGERY_OBJ2"
-    PREDICT = "PREDICT"
+    PREDICT_ACTIVE = "PREDICT_ACTIVE"
+    PREDICT_IMAGERY = "PREDICT_IMAGERY"
 
 
 class BCIBackend:
@@ -86,8 +87,8 @@ class BCIBackend:
             sfreq=self.sfreq,
             detection_threshold=self.detection_threshold,
         )
-        self.active_model = ObjectClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
-        self.imagery_model = ObjectClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
+        self.active_model = ActiveClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
+        self.imagery_model = ImageryClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
 
         self.active_obj1_epochs: List[np.ndarray] = []
         self.active_obj2_epochs: List[np.ndarray] = []
@@ -219,7 +220,8 @@ class BCIBackend:
                 BCIState.TRAIN_ACTIVE_OBJ2,
                 BCIState.TRAIN_IMAGERY_OBJ1,
                 BCIState.TRAIN_IMAGERY_OBJ2,
-                BCIState.PREDICT,
+                BCIState.PREDICT_ACTIVE,
+                BCIState.PREDICT_IMAGERY,
             ):
                 if not self._eeg_ready.wait(timeout=1.0):
                     continue
@@ -247,7 +249,8 @@ class BCIBackend:
             "Training_Active_Door2_Start": BCIState.TRAIN_ACTIVE_OBJ2,
             "Training_Imagery_Door1_Start": BCIState.TRAIN_IMAGERY_OBJ1,
             "Training_Imagery_Door2_Start": BCIState.TRAIN_IMAGERY_OBJ2,
-            "Predict_Start": BCIState.PREDICT,
+            "Predict_Start_Active": BCIState.PREDICT_ACTIVE,
+            "Predict_Start_Imagery": BCIState.PREDICT_IMAGERY,
             "Predict_End": BCIState.IDLE,
         }
 
@@ -319,7 +322,7 @@ class BCIBackend:
                                    remark={"Epochs_Collected": n, "Target_Epochs": self.n_train_epochs, "Object": "OBJ2"})
                 self._set_state(BCIState.IDLE)
 
-        elif state == BCIState.PREDICT:
+        elif state == BCIState.PREDICT_ACTIVE:
             if self.active_model.is_trained:
                 pred, conf = self.active_model.predict(epoch)
                 code = BCICode.ACTIVE_OBJ1_PREDICT if pred == 0 else BCICode.ACTIVE_OBJ2_PREDICT
@@ -328,6 +331,7 @@ class BCIBackend:
             else:
                 logger.warning("[Logic] ACTIVE model not trained.")
 
+        elif state == BCIState.PREDICT_IMAGERY:
             if self.imagery_model.is_trained:
                 pred, conf = self.imagery_model.predict(epoch)
                 code = BCICode.IMAGERY_OBJ1_PREDICT if pred == 0 else BCICode.IMAGERY_OBJ2_PREDICT

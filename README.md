@@ -151,9 +151,10 @@ SSVEP_TEST   TRAIN_ACTIVE_OBJ1               TRAIN_IMAGERY_OBJ1      │
                            ACTIVE model fit()                        │
                            IMAGERY model fit()                       │
                                 │                                    │
-                           ┌────▼───────┐                            │
-                           │  PREDICT   │ ── push 300/301, 303/304 ──┘
-                           └────────────┘
+                           ┌────────────────┐     ┌─────────────────┐        │
+                           │ PREDICT_ACTIVE │     │ PREDICT_IMAGERY │        │
+                           └────────┬───────┘     └────────┬────────┘        │
+                                 push 300/301          push 303/304          │
 ```
 
 ### Action → State Transitions
@@ -167,7 +168,8 @@ SSVEP_TEST   TRAIN_ACTIVE_OBJ1               TRAIN_IMAGERY_OBJ1      │
 | `Training_Imagery_Door1_Start` | `TRAIN_IMAGERY_OBJ1` | Buffers IMAGERY data for class 0. |
 | `Training_Imagery_Door2_Start` | `TRAIN_IMAGERY_OBJ2` | Buffers IMAGERY data for class 1. |
 | `Train_End` | `IDLE` | Automatically triggers `_attempt_training()` first. |
-| `Predict_Start` | `PREDICT` | Begins evaluating epochs against trained models. |
+| `Predict_Start_Active` | `PREDICT_ACTIVE` | Begins evaluating epochs against the ACTIVE model. |
+| `Predict_Start_Imagery` | `PREDICT_IMAGERY` | Begins evaluating epochs against the IMAGERY model. |
 | `Predict_End` | `IDLE` | Stops prediction. |
 
 ---
@@ -218,7 +220,7 @@ Training epochs (n_trials × n_channels × n_samples)
     └─► Model is ready
 ```
 
-**Prediction** (in `PREDICT` state):
+**Prediction** (in `PREDICT_ACTIVE` or `PREDICT_IMAGERY` state):
 ```text
 Single epoch (n_channels × n_samples)
     │
@@ -229,7 +231,7 @@ Single epoch (n_channels × n_samples)
     └─► (predicted_label, confidence)
 ```
 
-During the `PREDICT` state, **both** models evaluate the incoming epoch simultaneously and emit their own respective JSON messages to Unity.
+During the `PREDICT_ACTIVE` or `PREDICT_IMAGERY` state, the respective model evaluates the incoming epoch and emits its JSON message to Unity.
 
 ---
 
