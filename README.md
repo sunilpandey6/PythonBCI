@@ -118,8 +118,8 @@ Every packet Python sends to Unity is a single JSON string pushed over the `BCIB
 | **204** | `IMAGERY_OBJ2_TRAIN_COMPLETE` | Enough IMAGERY epochs collected for Door 2 |
 | **300** | `ACTIVE_OBJ1_PREDICT` | ACTIVE model predicts Door 1 |
 | **301** | `ACTIVE_OBJ2_PREDICT` | ACTIVE model predicts Door 2 |
-| **303** | `IMAGERY_OBJ1_PREDICT` | IMAGERY model predicts Door 1 |
-| **304** | `IMAGERY_OBJ2_PREDICT` | IMAGERY model predicts Door 2 |
+| **302** | `IMAGERY_OBJ1_PREDICT` | IMAGERY model predicts Door 1 |
+| **303** | `IMAGERY_OBJ2_PREDICT` | IMAGERY model predicts Door 2 |
 
 ---
 
@@ -405,7 +405,26 @@ python test_unitypythontest.py
 
 The test script:
 1. Creates an LSL outlet (type `"Markers"`) and sends mock Unity CSV log entries (including training loops and predictions).
-2. Listens on the `"BCIResult"` outlet and prints every JSON message Python sends back.
+4. Listens on the `"BCIResult"` outlet and prints every JSON message Python sends back.
+
+### Replaying XDF Files (`testxdfmain.py`)
+
+If you have recorded an experiment using LabRecorder, you can replay the `.xdf` file directly into `main.py` using the `testxdfmain.py` script. This reads both the Unity Marker and OpenBCI EEG streams from the file and replays them over LSL exactly as they occurred in real-time.
+
+> **Requirement**: You must have `pyxdf` installed (`pip install pyxdf`) to run this script.
+
+**Usage (Requires two terminal windows):**
+
+```bash
+# Terminal 1: Start the BCI backend
+python main.py --log-level DEBUG
+
+# Terminal 2: Run the XDF replayer (e.g. at 1x real-time speed)
+python testxdfmain.py mixdata2104.xdf
+
+# Or replay at 2x speed for faster testing:
+python testxdfmain.py mixdata2104.xdf --speed 2.0
+```
 
 ---
 

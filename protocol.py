@@ -64,8 +64,8 @@ class BCICode(IntEnum):
     ACTIVE_OBJ2_PREDICT  = 301
 
     # -- Imagery Online prediction ------------------------------------------
-    IMAGERY_OBJ1_PREDICT  = 303
-    IMAGERY_OBJ2_PREDICT  = 304
+    IMAGERY_OBJ1_PREDICT  = 302
+    IMAGERY_OBJ2_PREDICT  = 303
 
 
 # ---------------------------------------------------------------------------

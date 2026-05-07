@@ -54,7 +54,7 @@ class BCIBackend:
         self,
         target_freq: float = 10.0,
         sfreq: float = DEFAULT_SFREQ,
-        epoch_duration: float = 4.0,
+        epoch_duration: float = 1.0,
         eeg_stream_name: Optional[str] = None,
         marker_stream_name: Optional[str] = None,
         n_train_epochs: int = 10,
