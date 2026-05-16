@@ -206,11 +206,11 @@ class BCIBackend:
                     detail_str = ""
                     action_str = raw
 
-                with self._unity_event_lock:
-                    self._last_unity_event = event_str
-                    self._last_unity_detail = detail_str
-
-                self._marker_queue.put_nowait(action_str)
+                # Bundle all three fields into one atomic payload.
+                # Do NOT touch _last_unity_event/_last_unity_detail here —
+                # Thread 3 owns those updates to avoid the Flicker_End race.
+                payload = {"action": action_str, "event": event_str, "detail": detail_str}
+                self._marker_queue.put_nowait(payload)
 
             time.sleep(0.001)
 
@@ -226,10 +226,10 @@ class BCIBackend:
         while not self._shutdown.is_set():
             while not self._marker_queue.empty():
                 try:
-                    marker = self._marker_queue.get_nowait()
+                    payload = self._marker_queue.get_nowait()
                 except queue.Empty:
                     break
-                self._handle_marker(marker)
+                self._handle_marker_payload(payload)
 
             current_state = self._get_state()
 
@@ -268,7 +268,8 @@ class BCIBackend:
     # State machine
     # ------------------------------------------------------------------
 
-    def _handle_marker(self, action: str) -> None:
+    def _handle_marker_payload(self, payload: dict) -> None:
+        action = payload["action"]
         logger.info("[Logic] Action received: '%s'", action)
 
         if "Set_Target_Frequency" in action:
@@ -304,8 +305,16 @@ class BCIBackend:
 
         if action in transitions:
             new_state = transitions[action]
+            # Condition A: Flicker_End while in SSVEP_TEST.
+            # Do NOT overwrite _last_unity_event/_last_unity_detail so that
+            # _finalize_flicker() can echo back the correct Flicker_Start metadata.
             if self._get_state() == BCIState.SSVEP_TEST and new_state == BCIState.IDLE:
                 self._finalize_flicker()
+            else:
+                # Condition B: All other transitions — safe to update shared metadata.
+                with self._unity_event_lock:
+                    self._last_unity_event = payload["event"]
+                    self._last_unity_detail = payload["detail"]
             self._set_state(new_state)
             return
 
