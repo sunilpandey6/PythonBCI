@@ -89,9 +89,16 @@ def main() -> None:
     logger.info("Make sure main.py is running in another terminal!")
     logger.info("Press Ctrl+C to stop playback.")
     
-    # Wait a moment to ensure outlets are discoverable before blasting data
-    time.sleep(2.0)
-
+    # Wait until main.py (or another LSL consumer) connects to the outlets
+    logger.info("Waiting for main.py to connect to LSL streams...")
+    while True:
+        eeg_ready = True if eeg_outlet is None else eeg_outlet.have_consumers()
+        marker_ready = True if marker_outlet is None else marker_outlet.have_consumers()
+        if eeg_ready and marker_ready:
+            break
+        time.sleep(0.5)
+    
+    logger.info("Connection detected! Starting playback...")
     start_time_xdf = events[0][0]
     start_time_real = time.time()
 

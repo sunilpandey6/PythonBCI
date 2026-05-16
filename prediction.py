@@ -13,6 +13,8 @@ from sklearn.svm import SVC
 logger = logging.getLogger(__name__)
 
 
+
+
 class ImageryClassifier:
     """Binary EEG object classifier using a CSP + LDA pipeline.
     Optimized for motor/mental imagery paradigms.
@@ -143,3 +145,71 @@ class ActiveClassifier:
             SVC(kernel='linear', probability=True, class_weight='balanced')
         )
         logger.info("ActiveClassifier reset.")
+
+
+class MixedClassifier:
+    """Binary EEG object classifier using a Vectorizer + StandardScaler + SVM pipeline.
+    Optimized for mixed active and imagery paradigms.
+
+    Parameters
+    ----------
+    sfreq:
+        EEG sampling rate (Hz).
+    n_channels:
+        Number of EEG channels in each incoming epoch.
+    class_labels:
+        Ordered ``(label_obj1, label_obj2)`` pair used internally by
+        ``train()`` and ``predict()``. Defaults to ``(0, 1)``.
+    """
+
+    def __init__(
+        self,
+        sfreq: float = 250.0,
+        n_channels: int = 16,
+        class_labels: Tuple[int, int] = (0, 1),
+    ) -> None:
+        self.sfreq = float(sfreq)
+        self.n_channels = int(n_channels)
+        self.class_labels = class_labels
+        self.is_trained: bool = False
+        
+        # Time-domain ERP pipeline
+        self.pipeline = make_pipeline(
+            Vectorizer(),
+            StandardScaler(),
+            SVC(kernel='linear', probability=True, class_weight='balanced')
+        )
+        
+        logger.info("MixedClassifier initialized (Vectorizer+SVM) | sfreq=%.1f Hz | n_channels=%d", self.sfreq, self.n_channels)
+
+    def train(self, data: List[np.ndarray], labels: List[int]) -> None:
+        """Fit the time-domain SVM classifier on labelled epochs."""
+        X = np.stack(data, axis=0)  # (n_epochs, n_channels, n_samples)
+        y = np.array(labels)
+        
+        logger.info("Training MixedClassifier on %d epochs …", len(y))
+        self.pipeline.fit(X, y)
+        self.is_trained = True
+        logger.info("MixedClassifier training complete.")
+
+    def predict(self, epoch: np.ndarray) -> Tuple[int, float]:
+        """Predict the object class for a single EEG epoch."""
+        if not self.is_trained:
+            raise RuntimeError("MixedClassifier is not trained yet.")
+            
+        X = epoch[np.newaxis, :, :]
+        
+        pred_label = int(self.pipeline.predict(X)[0])
+        confidence = float(np.max(self.pipeline.predict_proba(X)[0]))
+        
+        return pred_label, confidence
+
+    def reset(self) -> None:
+        """Revert to untrained state."""
+        self.is_trained = False
+        self.pipeline = make_pipeline(
+            Vectorizer(),
+            StandardScaler(),
+            SVC(kernel='linear', probability=True, class_weight='balanced')
+        )
+        logger.info("MixedClassifier reset.")

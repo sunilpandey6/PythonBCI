@@ -3,15 +3,16 @@ from __future__ import annotations
 import argparse
 import logging
 import queue
+import re
 import threading
 import time
-from collections import deque
-from typing import Deque, List, Optional
+from collections import Counter, deque
+from typing import Deque, List, Optional, Tuple
 
 import numpy as np
 
 from flicker import FlickerResult, SSVEPDetector
-from prediction import ActiveClassifier, ImageryClassifier
+from prediction import ActiveClassifier, ImageryClassifier, MixedClassifier
 from protocol import BCICode, build_message
 
 logging.basicConfig(
@@ -47,19 +48,23 @@ class BCIState:
     TRAIN_IMAGERY_OBJ2 = "TRAIN_IMAGERY_OBJ2"
     PREDICT_ACTIVE = "PREDICT_ACTIVE"
     PREDICT_IMAGERY = "PREDICT_IMAGERY"
+    PREDICT_MIXED = "PREDICT_MIXED"
 
 
 class BCIBackend:
     def __init__(
         self,
-        target_freq: float = 10.0,
+        target_freq: float = 15.0,
         sfreq: float = DEFAULT_SFREQ,
         epoch_duration: float = 1.0,
         eeg_stream_name: Optional[str] = None,
         marker_stream_name: Optional[str] = None,
         n_train_epochs: int = 10,
-        detection_threshold: float = 0.55,
+        detection_threshold: float = 0.4,
         resolve_timeout: float = 10.0,
+        predict_accumulation_time: float = 3.0,
+        predict_agreement_threshold: float = 0.75,
+        predict_confidence_threshold: float = 0.7,
     ) -> None:
         self.target_freq = float(target_freq)
         self.sfreq = float(sfreq)
@@ -69,6 +74,14 @@ class BCIBackend:
         self.n_train_epochs = int(n_train_epochs)
         self.detection_threshold = float(detection_threshold)
         self.resolve_timeout = float(resolve_timeout)
+        self.predict_accumulation_time = float(predict_accumulation_time)
+        self.predict_agreement_threshold = float(predict_agreement_threshold)
+        self.predict_confidence_threshold = float(predict_confidence_threshold)
+
+        self.step_size = 0.2
+        self.latency_shift_s = 0.0
+        self._last_process_time = 0.0
+        self._ignore_samples = 0
 
         self._epoch_samples: int = int(self.sfreq * self.epoch_duration)
 
@@ -89,11 +102,17 @@ class BCIBackend:
         )
         self.active_model = ActiveClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
         self.imagery_model = ImageryClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
+        self.mixed_model = MixedClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
 
         self.active_obj1_epochs: List[np.ndarray] = []
         self.active_obj2_epochs: List[np.ndarray] = []
         self.imagery_obj1_epochs: List[np.ndarray] = []
         self.imagery_obj2_epochs: List[np.ndarray] = []
+        self._flicker_results: List[FlickerResult] = []
+        
+        self._predict_buffer: Deque[Tuple[int, float, str, float]] = deque(
+            maxlen=max(1, int(self.predict_accumulation_time / self.step_size))
+        )
 
         self._last_unity_event: str = ""
         self._last_unity_detail: str = ""
@@ -149,6 +168,10 @@ class BCIBackend:
                 sample = np.array(sample_list, dtype=np.float32)
 
             with self._buffer_lock:
+                if self._ignore_samples > 0:
+                    self._ignore_samples -= 1
+                    continue
+
                 self._eeg_buffer.append(sample)
                 if len(self._eeg_buffer) >= self._epoch_samples:
                     self._eeg_ready.set()
@@ -222,6 +245,7 @@ class BCIBackend:
                 BCIState.TRAIN_IMAGERY_OBJ2,
                 BCIState.PREDICT_ACTIVE,
                 BCIState.PREDICT_IMAGERY,
+                BCIState.PREDICT_MIXED,
             ):
                 if not self._eeg_ready.wait(timeout=1.0):
                     continue
@@ -230,6 +254,11 @@ class BCIBackend:
                 epoch = self._snapshot_epoch()
                 if epoch is None:
                     continue
+
+                now = time.time()
+                if now - self._last_process_time < self.step_size:
+                    continue
+                self._last_process_time = now
 
                 self._process_epoch(epoch, current_state)
 
@@ -242,6 +271,24 @@ class BCIBackend:
     def _handle_marker(self, action: str) -> None:
         logger.info("[Logic] Action received: '%s'", action)
 
+        if "Set_Target_Frequency" in action:
+            match = re.search(r'[\d\.]+', action)
+            if match:
+                try:
+                    freq = float(match.group())
+                    self.target_freq = freq
+                    self._detector.target_freq = freq
+                    logger.info("[Logic] Target frequency set to %.2f Hz", freq)
+                except ValueError:
+                    self.target_freq = 15.0
+                    self._detector.target_freq = 15.0
+                    logger.warning("[Logic] Invalid frequency in '%s', defaulting to 15.0 Hz", action)
+            else:
+                self.target_freq = 15.0
+                self._detector.target_freq = 15.0
+                logger.info("[Logic] No frequency found in '%s', defaulting to 15.0 Hz", action)
+            return
+
         transitions = {
             "Flicker_Start": BCIState.SSVEP_TEST,
             "Flicker_End": BCIState.IDLE,
@@ -251,11 +298,15 @@ class BCIBackend:
             "Training_Imagery_Door2_Start": BCIState.TRAIN_IMAGERY_OBJ2,
             "Predict_Start_Active": BCIState.PREDICT_ACTIVE,
             "Predict_Start_Imagery": BCIState.PREDICT_IMAGERY,
+            "Start_predict": BCIState.PREDICT_MIXED,
             "Predict_End": BCIState.IDLE,
         }
 
         if action in transitions:
-            self._set_state(transitions[action])
+            new_state = transitions[action]
+            if self._get_state() == BCIState.SSVEP_TEST and new_state == BCIState.IDLE:
+                self._finalize_flicker()
+            self._set_state(new_state)
             return
 
         if action == "Train_End":
@@ -266,17 +317,16 @@ class BCIBackend:
         logger.debug("[Logic] Unrecognised action: '%s' - ignored.", action)
 
     def _preprocess_global(self, epoch: np.ndarray) -> np.ndarray:
-        """Notch (50 Hz) → Bandpass (8–30 Hz) → Z-score normalisation per channel."""
+        """Notch (50 Hz) -> Bandpass (1.0-90.0 Hz)."""
         from scipy import signal
         nyq = self.sfreq / 2.0
         b_n, a_n = signal.iirnotch(50.0 / nyq, 30.0)
         epoch_filt = signal.filtfilt(b_n, a_n, epoch, axis=-1)
-        sos = signal.butter(4, [8.0, 30.0], btype="bandpass", fs=self.sfreq, output="sos")
+        
+        sos = signal.butter(4, [1.0, min(90.0, nyq - 0.1)], btype="bandpass", fs=self.sfreq, output="sos")
         epoch_filt = signal.sosfiltfilt(sos, epoch_filt, axis=-1)
-        mean = np.mean(epoch_filt, axis=-1, keepdims=True)
-        std = np.std(epoch_filt, axis=-1, keepdims=True)
-        std[std < 1e-6] = 1.0
-        return (epoch_filt - mean) / std
+        
+        return epoch_filt
 
     def _process_epoch(self, epoch: np.ndarray, state: str) -> None:
         epoch = self._preprocess_global(epoch)
@@ -284,7 +334,7 @@ class BCIBackend:
 
         if state == BCIState.SSVEP_TEST:
             result = self._detector.detect(epoch)
-            self._push_flicker_result(result, unity_event, unity_detail)
+            self._flicker_results.append(result)
 
         elif state == BCIState.TRAIN_ACTIVE_OBJ1:
             self.active_obj1_epochs.append(epoch.copy())
@@ -325,20 +375,60 @@ class BCIBackend:
         elif state == BCIState.PREDICT_ACTIVE:
             if self.active_model.is_trained:
                 pred, conf = self.active_model.predict(epoch)
-                code = BCICode.ACTIVE_OBJ1_PREDICT if pred == 0 else BCICode.ACTIVE_OBJ2_PREDICT
-                self._push_message(code, unity_event, unity_detail,
-                                   remark={"Model": "ACTIVE", "Prediction": "OBJ1" if pred == 0 else "OBJ2", "Confidence": conf})
+                self._accumulate_and_push(pred, conf, "ACTIVE", "None", 0.0, unity_event, unity_detail)
             else:
                 logger.warning("[Logic] ACTIVE model not trained.")
 
         elif state == BCIState.PREDICT_IMAGERY:
             if self.imagery_model.is_trained:
                 pred, conf = self.imagery_model.predict(epoch)
-                code = BCICode.IMAGERY_OBJ1_PREDICT if pred == 0 else BCICode.IMAGERY_OBJ2_PREDICT
-                self._push_message(code, unity_event, unity_detail,
-                                   remark={"Model": "IMAGERY", "Prediction": "OBJ1" if pred == 0 else "OBJ2", "Confidence": conf})
+                self._accumulate_and_push(pred, conf, "IMAGERY", "None", 0.0, unity_event, unity_detail)
             else:
                 logger.warning("[Logic] IMAGERY model not trained.")
+
+        elif state == BCIState.PREDICT_MIXED:
+            if self.mixed_model.is_trained:
+                pred_mixed, conf_mixed = self.mixed_model.predict(epoch)
+                
+                # Get imagery predict if available
+                pred_imagery_str = "None"
+                conf_imagery = 0.0
+                if self.imagery_model.is_trained:
+                    pred_im, conf_im = self.imagery_model.predict(epoch)
+                    pred_imagery_str = "OBJ1" if pred_im == 0 else "OBJ2"
+                    conf_imagery = conf_im
+                
+                self._accumulate_and_push(pred_mixed, conf_mixed, "MIXED", pred_imagery_str, conf_imagery, unity_event, unity_detail)
+            else:
+                logger.warning("[Logic] MIXED model not trained.")
+
+    def _accumulate_and_push(self, pred: int, conf: float, model_name: str, imagery_str: str, imagery_conf: float, unity_event: str, unity_detail: str) -> None:
+        self._predict_buffer.append((pred, conf, imagery_str, imagery_conf))
+        if len(self._predict_buffer) == self._predict_buffer.maxlen:
+            counts = Counter([p[0] for p in self._predict_buffer])
+            most_common_pred, most_common_count = counts.most_common(1)[0]
+            agreement = most_common_count / len(self._predict_buffer)
+            avg_conf = sum([p[1] for p in self._predict_buffer]) / len(self._predict_buffer)
+            
+            if agreement >= self.predict_agreement_threshold and avg_conf >= self.predict_confidence_threshold:
+                last_imagery_str = self._predict_buffer[-1][2]
+                avg_imagery_conf = sum([p[3] for p in self._predict_buffer]) / len(self._predict_buffer)
+                
+                code = BCICode.ACTIVE_OBJ1_PREDICT if most_common_pred == 0 else BCICode.ACTIVE_OBJ2_PREDICT
+                if model_name == "IMAGERY":
+                    code = BCICode.IMAGERY_OBJ1_PREDICT if most_common_pred == 0 else BCICode.IMAGERY_OBJ2_PREDICT
+
+                self._push_message(code, unity_event, unity_detail,
+                                   remark={
+                                       "Model": model_name,
+                                       "Prediction": "OBJ1" if most_common_pred == 0 else "OBJ2",
+                                       "Confidence": avg_conf,
+                                       "Agreement": agreement,
+                                       "Imagery_Prediction": last_imagery_str,
+                                       "Imagery_Confidence": avg_imagery_conf
+                                   })
+                logger.info("[Logic] Stable prediction emitted: %s (Agreement: %.2f, AvgConf: %.2f)", code.name, agreement, avg_conf)
+                self._predict_buffer.clear()
 
     def _attempt_training(self) -> None:
         if self.active_obj1_epochs and self.active_obj2_epochs:
@@ -355,14 +445,74 @@ class BCIBackend:
         else:
             logger.warning("[Logic] IMAGERY training skipped - missing epochs.")
 
+        X_m_obj1 = self.active_obj1_epochs + self.imagery_obj1_epochs
+        X_m_obj2 = self.active_obj2_epochs + self.imagery_obj2_epochs
+        if X_m_obj1 and X_m_obj2:
+            X_m = X_m_obj1 + X_m_obj2
+            y_m = [0] * len(X_m_obj1) + [1] * len(X_m_obj2)
+            self.mixed_model.train(X_m, y_m)
+        else:
+            logger.warning("[Logic] MIXED training skipped - missing epochs.")
+
     # ------------------------------------------------------------------
     # State accessors
     # ------------------------------------------------------------------
+
+    def _finalize_flicker(self) -> None:
+        unity_event, unity_detail = self._read_unity_event()
+        if not self._flicker_results:
+            logger.warning("[Logic] No SSVEP epochs were processed during flicker.")
+            from flicker import FlickerResult
+            from protocol import BCICode
+            result = FlickerResult(
+                code=BCICode.FLICKER_NOT_DETECTED,
+                detected_frequency=self.target_freq,
+                confidence_score=0.0,
+                ssvep_present=False,
+                fbcca_score=0.0
+            )
+            self._push_flicker_result(result, unity_event, unity_detail)
+            return
+
+        max_conf = float(max(r.confidence_score for r in self._flicker_results))
+        ssvep_present = max_conf >= self._detector.detection_threshold
+        
+        from flicker import FlickerResult
+        from protocol import BCICode
+        final_result = FlickerResult(
+            code=BCICode.FLICKER_DETECTED if ssvep_present else BCICode.FLICKER_NOT_DETECTED,
+            detected_frequency=self.target_freq,
+            confidence_score=max_conf,
+            ssvep_present=ssvep_present,
+            fbcca_score=float(max(r.fbcca_score for r in self._flicker_results))
+        )
+        self._push_flicker_result(final_result, unity_event, unity_detail)
+        logger.info("[Logic] Flicker finalized. Max confidence: %.2f (Windows: %d)", max_conf, len(self._flicker_results))
 
     def _set_state(self, new_state: str) -> None:
         with self._state_lock:
             logger.info("[Logic] State: %s → %s", self._state, new_state)
             self._state = new_state
+            
+        if new_state == BCIState.SSVEP_TEST:
+            with self._buffer_lock:
+                self._flicker_results.clear()
+
+        # When transitioning to a new processing state (except SSVEP which is continuous),
+        # flush the buffer and ignore the next 140ms of samples to account for visual processing latency.
+        if new_state in (
+            BCIState.TRAIN_ACTIVE_OBJ1,
+            BCIState.TRAIN_ACTIVE_OBJ2,
+            BCIState.TRAIN_IMAGERY_OBJ1,
+            BCIState.TRAIN_IMAGERY_OBJ2,
+            BCIState.PREDICT_ACTIVE,
+            BCIState.PREDICT_IMAGERY,
+            BCIState.PREDICT_MIXED,
+        ):
+            with self._buffer_lock:
+                self._eeg_buffer.clear()
+                self._ignore_samples = int(self.latency_shift_s * self.sfreq)
+                self._predict_buffer.clear()
 
     def _get_state(self) -> str:
         with self._state_lock:
@@ -460,11 +610,11 @@ def _parse_args() -> argparse.Namespace:
         description="Real-Time BCI Backend (OpenBCI + Unity LSL)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--target-freq", type=float, default=10.0, metavar="HZ", help="SSVEP stimulus frequency.")
+    parser.add_argument("--target-freq", type=float, default=15.0, metavar="HZ", help="SSVEP stimulus frequency.")
     parser.add_argument("--sfreq", type=float, default=DEFAULT_SFREQ, metavar="HZ", help="EEG sampling rate.")
-    parser.add_argument("--epoch-duration", type=float, default=4.0, metavar="S", help="Analysis window length (s).")
-    parser.add_argument("--n-train-epochs", type=int, default=10, help="Epochs per object during training.")
-    parser.add_argument("--detection-threshold", type=float, default=0.55, help="Minimum ensemble score for SSVEP detection.")
+    parser.add_argument("--epoch-duration", type=float, default=1.0, metavar="S", help="Analysis window length (s).")
+    parser.add_argument("--n-train-epochs", type=int, default=15, help="Epochs per object during training.")
+    parser.add_argument("--detection-threshold", type=float, default=0.4, help="Minimum ensemble score for SSVEP detection.")
     parser.add_argument("--resolve-timeout", type=float, default=10.0, metavar="S", help="Seconds to wait for each LSL stream.")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO", help="Logging verbosity.")
     parser.add_argument("--test-mode", action="store_true", help="Send dummy LSL messages every 2s to test Unity connection.")
