@@ -59,7 +59,7 @@ class BCIBackend:
         epoch_duration: float = 1.0,
         eeg_stream_name: Optional[str] = None,
         marker_stream_name: Optional[str] = None,
-        n_train_epochs: int = 10,
+        n_train_epochs: int = 30,
         detection_threshold: float = 0.4,
         resolve_timeout: float = 10.0,
         predict_accumulation_time: float = 3.0,
@@ -104,10 +104,10 @@ class BCIBackend:
         self.imagery_model = ImageryClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
         self.mixed_model = MixedClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
 
-        self.active_obj1_epochs: List[np.ndarray] = []
-        self.active_obj2_epochs: List[np.ndarray] = []
-        self.imagery_obj1_epochs: List[np.ndarray] = []
-        self.imagery_obj2_epochs: List[np.ndarray] = []
+        self.active_obj1_epochs: Deque[np.ndarray] = deque(maxlen=self.n_train_epochs)
+        self.active_obj2_epochs: Deque[np.ndarray] = deque(maxlen=self.n_train_epochs)
+        self.imagery_obj1_epochs: Deque[np.ndarray] = deque(maxlen=self.n_train_epochs)
+        self.imagery_obj2_epochs: Deque[np.ndarray] = deque(maxlen=self.n_train_epochs)
         self._flicker_results: List[FlickerResult] = []
         
         self._predict_buffer: Deque[Tuple[int, float, str, float]] = deque(
@@ -294,9 +294,13 @@ class BCIBackend:
             "Flicker_Start": BCIState.SSVEP_TEST,
             "Flicker_End": BCIState.IDLE,
             "Training_Active_Door1_Start": BCIState.TRAIN_ACTIVE_OBJ1,
-            "Training_Active_Door2_Start": BCIState.TRAIN_ACTIVE_OBJ2,
+            "Training_Active_Door1_End": BCIState.IDLE,
             "Training_Imagery_Door1_Start": BCIState.TRAIN_IMAGERY_OBJ1,
-            "Training_Imagery_Door2_Start": BCIState.TRAIN_IMAGERY_OBJ2,
+            "Training_Imagery_Door1_End": BCIState.IDLE,
+            "Active_Training_Door2_Start": BCIState.TRAIN_ACTIVE_OBJ2,
+            "Active_Training_Door2_End": BCIState.IDLE,
+            "Image_Training_Door2_Start": BCIState.TRAIN_IMAGERY_OBJ2,
+            "Image_Training_Door2_End": BCIState.IDLE,
             "Predict_Start_Active": BCIState.PREDICT_ACTIVE,
             "Predict_Start_Imagery": BCIState.PREDICT_IMAGERY,
             "Start_predict": BCIState.PREDICT_MIXED,
@@ -348,38 +352,30 @@ class BCIBackend:
         elif state == BCIState.TRAIN_ACTIVE_OBJ1:
             self.active_obj1_epochs.append(epoch.copy())
             n = len(self.active_obj1_epochs)
-            logger.info("[Logic] TRAIN_ACTIVE_OBJ1 epoch %d/%d.", n, self.n_train_epochs)
+            logger.info("[Logic] TRAIN_ACTIVE_OBJ1 sliding window: %d/%d epochs buffered.", n, self.n_train_epochs)
             if n >= self.n_train_epochs:
-                self._push_message(BCICode.ACTIVE_OBJ1_TRAIN_COMPLETE, unity_event, unity_detail,
-                                   remark={"Epochs_Collected": n, "Target_Epochs": self.n_train_epochs, "Object": "OBJ1"})
-                self._set_state(BCIState.IDLE)
+                logger.info("[Logic] TRAIN_ACTIVE_OBJ1 buffer full - sliding window ready.")
 
         elif state == BCIState.TRAIN_ACTIVE_OBJ2:
             self.active_obj2_epochs.append(epoch.copy())
             n = len(self.active_obj2_epochs)
-            logger.info("[Logic] TRAIN_ACTIVE_OBJ2 epoch %d/%d.", n, self.n_train_epochs)
+            logger.info("[Logic] TRAIN_ACTIVE_OBJ2 sliding window: %d/%d epochs buffered.", n, self.n_train_epochs)
             if n >= self.n_train_epochs:
-                self._push_message(BCICode.ACTIVE_OBJ2_TRAIN_COMPLETE, unity_event, unity_detail,
-                                   remark={"Epochs_Collected": n, "Target_Epochs": self.n_train_epochs, "Object": "OBJ2"})
-                self._set_state(BCIState.IDLE)
+                logger.info("[Logic] TRAIN_ACTIVE_OBJ2 buffer full - sliding window ready.")
 
         elif state == BCIState.TRAIN_IMAGERY_OBJ1:
             self.imagery_obj1_epochs.append(epoch.copy())
             n = len(self.imagery_obj1_epochs)
-            logger.info("[Logic] TRAIN_IMAGERY_OBJ1 epoch %d/%d.", n, self.n_train_epochs)
+            logger.info("[Logic] TRAIN_IMAGERY_OBJ1 sliding window: %d/%d epochs buffered.", n, self.n_train_epochs)
             if n >= self.n_train_epochs:
-                self._push_message(BCICode.IMAGERY_OBJ1_TRAIN_COMPLETE, unity_event, unity_detail,
-                                   remark={"Epochs_Collected": n, "Target_Epochs": self.n_train_epochs, "Object": "OBJ1"})
-                self._set_state(BCIState.IDLE)
+                logger.info("[Logic] TRAIN_IMAGERY_OBJ1 buffer full - sliding window ready.")
 
         elif state == BCIState.TRAIN_IMAGERY_OBJ2:
             self.imagery_obj2_epochs.append(epoch.copy())
             n = len(self.imagery_obj2_epochs)
-            logger.info("[Logic] TRAIN_IMAGERY_OBJ2 epoch %d/%d.", n, self.n_train_epochs)
+            logger.info("[Logic] TRAIN_IMAGERY_OBJ2 sliding window: %d/%d epochs buffered.", n, self.n_train_epochs)
             if n >= self.n_train_epochs:
-                self._push_message(BCICode.IMAGERY_OBJ2_TRAIN_COMPLETE, unity_event, unity_detail,
-                                   remark={"Epochs_Collected": n, "Target_Epochs": self.n_train_epochs, "Object": "OBJ2"})
-                self._set_state(BCIState.IDLE)
+                logger.info("[Logic] TRAIN_IMAGERY_OBJ2 buffer full - sliding window ready.")
 
         elif state == BCIState.PREDICT_ACTIVE:
             if self.active_model.is_trained:
@@ -440,28 +436,36 @@ class BCIBackend:
                 self._predict_buffer.clear()
 
     def _attempt_training(self) -> None:
-        if self.active_obj1_epochs and self.active_obj2_epochs:
-            X_a = self.active_obj1_epochs + self.active_obj2_epochs
-            y_a = [0] * len(self.active_obj1_epochs) + [1] * len(self.active_obj2_epochs)
+        act_obj1 = list(self.active_obj1_epochs)
+        act_obj2 = list(self.active_obj2_epochs)
+        img_obj1 = list(self.imagery_obj1_epochs)
+        img_obj2 = list(self.imagery_obj2_epochs)
+
+        if len(act_obj1) >= self.n_train_epochs and len(act_obj2) >= self.n_train_epochs:
+            X_a = act_obj1 + act_obj2
+            y_a = [0] * len(act_obj1) + [1] * len(act_obj2)
             self.active_model.train(X_a, y_a)
         else:
-            logger.warning("[Logic] ACTIVE training skipped - missing epochs.")
+            logger.warning("[Logic] ACTIVE training skipped - insufficient epochs (OBJ1: %d, OBJ2: %d, need: %d).",
+                           len(act_obj1), len(act_obj2), self.n_train_epochs)
 
-        if self.imagery_obj1_epochs and self.imagery_obj2_epochs:
-            X_i = self.imagery_obj1_epochs + self.imagery_obj2_epochs
-            y_i = [0] * len(self.imagery_obj1_epochs) + [1] * len(self.imagery_obj2_epochs)
+        if len(img_obj1) >= self.n_train_epochs and len(img_obj2) >= self.n_train_epochs:
+            X_i = img_obj1 + img_obj2
+            y_i = [0] * len(img_obj1) + [1] * len(img_obj2)
             self.imagery_model.train(X_i, y_i)
         else:
-            logger.warning("[Logic] IMAGERY training skipped - missing epochs.")
+            logger.warning("[Logic] IMAGERY training skipped - insufficient epochs (OBJ1: %d, OBJ2: %d, need: %d).",
+                           len(img_obj1), len(img_obj2), self.n_train_epochs)
 
-        X_m_obj1 = self.active_obj1_epochs + self.imagery_obj1_epochs
-        X_m_obj2 = self.active_obj2_epochs + self.imagery_obj2_epochs
-        if X_m_obj1 and X_m_obj2:
+        X_m_obj1 = act_obj1 + img_obj1
+        X_m_obj2 = act_obj2 + img_obj2
+        if len(X_m_obj1) >= self.n_train_epochs and len(X_m_obj2) >= self.n_train_epochs:
             X_m = X_m_obj1 + X_m_obj2
             y_m = [0] * len(X_m_obj1) + [1] * len(X_m_obj2)
             self.mixed_model.train(X_m, y_m)
         else:
-            logger.warning("[Logic] MIXED training skipped - missing epochs.")
+            logger.warning("[Logic] MIXED training skipped - insufficient epochs (OBJ1: %d, OBJ2: %d, need: %d).",
+                           len(X_m_obj1), len(X_m_obj2), self.n_train_epochs)
 
     # ------------------------------------------------------------------
     # State accessors
@@ -622,7 +626,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--target-freq", type=float, default=15.0, metavar="HZ", help="SSVEP stimulus frequency.")
     parser.add_argument("--sfreq", type=float, default=DEFAULT_SFREQ, metavar="HZ", help="EEG sampling rate.")
     parser.add_argument("--epoch-duration", type=float, default=1.0, metavar="S", help="Analysis window length (s).")
-    parser.add_argument("--n-train-epochs", type=int, default=15, help="Epochs per object during training.")
+    parser.add_argument("--n-train-epochs", type=int, default=30, help="Epochs per object during training.")
     parser.add_argument("--detection-threshold", type=float, default=0.4, help="Minimum ensemble score for SSVEP detection.")
     parser.add_argument("--resolve-timeout", type=float, default=10.0, metavar="S", help="Seconds to wait for each LSL stream.")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO", help="Logging verbosity.")
