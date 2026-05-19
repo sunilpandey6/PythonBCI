@@ -8,23 +8,24 @@ A real-time, 16-channel EEG BCI processing backend for OpenBCI + Unity VR experi
 
 1. [Overview](#overview)
 2. [Project Structure](#project-structure)
-3. [Unity ↔ Python Protocol](#unity--python-protocol)
+3. [Configuration (BCIConfig)](#configuration-bciconfig)
+4. [Unity ↔ Python Protocol](#unity--python-protocol)
    - [Input: Unity Marker Format](#input-unity-marker-format)
    - [Output: JSON Message Schema](#output-json-message-schema)
    - [Code Reference Table](#code-reference-table)
-4. [State Machine](#state-machine)
+5. [State Machine](#state-machine)
    - [Full Flow Diagram](#full-flow-diagram)
    - [Action → State Transitions](#action--state-transitions)
-5. [Signal Processing Pipelines](#signal-processing-pipelines)
+6. [Signal Processing Pipelines](#signal-processing-pipelines)
    - [Global EEG Preprocessing](#global-eeg-preprocessing)
    - [SSVEP Detection (flicker.py)](#ssvep-detection-flickerpy)
    - [Object Classification (prediction.py)](#object-classification-predictionpy)
-6. [Threading Model](#threading-model)
-7. [Installation & Setup](#installation--setup)
-8. [Operation & CLI Arguments](#operation--cli-arguments)
-9. [Unity Integration Guide](#unity-integration-guide)
-10. [Testing the Connection](#testing-the-connection)
-11. [Troubleshooting](#troubleshooting)
+7. [Threading Model](#threading-model)
+8. [Installation & Setup](#installation--setup)
+9. [Operation & CLI Arguments](#operation--cli-arguments)
+10. [Unity Integration Guide](#unity-integration-guide)
+11. [Testing & Replay](#testing--replay)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -33,15 +34,15 @@ A real-time, 16-channel EEG BCI processing backend for OpenBCI + Unity VR experi
 PythonBCI is a standalone Python daemon that bridges a **16-channel OpenBCI Cyton** EEG headset with a **Unity** VR experiment over a local network using LSL.
 
 It handles two primary BCI paradigms simultaneously:
-1. **SSVEP Flicker Detection**: Real-time identification of target frequencies using an ensemble of FFT, Welch PSD, and Canonical Correlation Analysis (CCA).
-2. **Motor Imagery / Active State Classification**: A dual machine-learning system (ACTIVE vs IMAGERY) using a Common Spatial Patterns (CSP) + Linear Discriminant Analysis (LDA) pipeline to classify user intent.
+1. **SSVEP Flicker Detection**: Continuous real-time identification of a configurable target frequency using FBCCA (Filter-Bank Canonical Correlation Analysis). The target frequency can be updated live from the Unity Settings UI.
+2. **Motor Imagery / Active State Classification**: A three-model ML system (ACTIVE, IMAGERY, MIXED) classifying user intent using a time-domain SVM pipeline. Predictions are emitted only when a configurable agreement and confidence threshold is met across a rolling window of epochs.
 
 | Feature | Details |
 |---|---|
 | **EEG Hardware** | OpenBCI Cyton (16-ch) |
 | **Communication** | Lab Streaming Layer (pylsl) |
-| **SSVEP Detection** | FFT + Welch PSD + CCA ensemble |
-| **Object Classification** | CSP + LDA (mne + scikit-learn) |
+| **SSVEP Detection** | FBCCA (Filter-Bank CCA), continuous sliding window |
+| **Object Classification** | Vectorizer + StandardScaler + SVM (scikit-learn) |
 | **Output Format** | JSON over LSL string stream |
 
 ---
@@ -50,13 +51,53 @@ It handles two primary BCI paradigms simultaneously:
 
 ```text
 PythonBCI/
-├── main.py                  # Entry point: threading, state machine, LSL I/O
-├── protocol.py              # BCICode IntEnum + message schema helpers
-├── flicker.py               # SSVEPDetector: FFT + Welch PSD + CCA ensemble
-├── prediction.py            # ObjectClassifier: CSP + LDA ML pipeline
+├── main.py                  # Entry point: BCIConfig, threading, state machine, LSL I/O
+├── protocol.py              # BCICode IntEnum + build_message / parse_message helpers
+├── flicker.py               # SSVEPDetector: FBCCA-based SSVEP detection
+├── prediction.py            # ActiveClassifier, ImageryClassifier, MixedClassifier
+├── testxdfmain.py           # Replays a recorded .xdf file over LSL for offline testing
+├── print_results.py         # Prints BCIBackend LSL stream output to the terminal
 ├── test_unitypythontest.py  # Standalone LSL round-trip connection test
 └── README.md                # This documentation
 ```
+
+---
+
+## Configuration (BCIConfig)
+
+`BCIConfig` is a `@dataclass` in `main.py` and is the **single source of truth** for all configurable parameters. Defaults live here; `argparse` reads from them so there is no duplication.
+
+```python
+@dataclass
+class BCIConfig:
+    target_freq: float = 15.0              # SSVEP stimulus frequency (Hz)
+    sfreq: float = 250.0                   # EEG sampling rate (Hz)
+    epoch_duration: float = 1.0            # Sliding window length (s)
+    n_train_epochs: int = 30               # Ring buffer size per class
+    detection_threshold: float = 0.4       # Min FBCCA score for FLICKER_DETECTED
+    resolve_timeout: float = 10.0          # LSL stream resolve timeout (s)
+    predict_accumulation_time: float = 3.0 # Prediction window length (s)
+    predict_agreement_threshold: float = 0.75  # Min fraction of buffer agreeing
+    predict_confidence_threshold: float = 0.7  # Min avg SVM confidence
+    eeg_stream_name: Optional[str] = None  # Override EEG stream name (None = auto)
+    marker_stream_name: Optional[str] = None   # Override Marker stream name
+```
+
+**Usage — programmatic (e.g. from a test script):**
+```python
+from main import BCIBackend, BCIConfig
+
+config = BCIConfig(target_freq=10.0, detection_threshold=0.35)
+backend = BCIBackend(config)
+backend.start()
+```
+
+**Usage — CLI (argparse reads defaults from BCIConfig so there is no duplication):**
+```bash
+python main.py --target-freq 10.0 --detection-threshold 0.35
+```
+
+> Prediction thresholds (`predict_agreement_threshold`, `predict_confidence_threshold`) and `predict_accumulation_time` are not exposed as CLI arguments — modify them directly in `BCIConfig` if you need to tune them.
 
 ---
 
@@ -72,29 +113,45 @@ Unity sends CSV log entries over an LSL string stream (type: `"Markers"`). Each 
 |---|---|---|
 | **Time** | Timestamp (ignored by Python) | `2026-05-05 15:08:38.284` |
 | **Experiment** | Experiment label (ignored) | `BCI` |
-| **Phase** | Scene/phase label (ignored) | `Demo3D` |
-| **Event** | **Pass-through** — forwarded verbatim to output | `Flicker_Start` |
-| **Detail** | **Pass-through** — forwarded verbatim to output | `Object: Door_Single; Hz: 15` |
+| **Phase** | Scene/phase label (ignored) | `TrainBCI` |
+| **Event** | **Pass-through** — forwarded verbatim to output | `Flicker` |
+| **Detail** | **Pass-through** — forwarded verbatim to output | `Door_Single` |
 | **Action** | **State machine driver** — strictly controls Python logic | `Flicker_Start` |
 
-> **Critical Rule**: Python **never** modifies or interprets `Event` or `Detail`. They are stored as-is and echoed back in every outgoing message so Unity can match responses to its own logged events.
+> **Critical Rule**: Python **never** modifies or interprets `Event` or `Detail`. They are stored and echoed back verbatim in every outgoing message so Unity can match responses to its own logged events.
 
 ### Output: JSON Message Schema
 
 Every packet Python sends to Unity is a single JSON string pushed over the `BCIBackend` LSL outlet (type: `"BCIResult"`). The schema is strictly typed:
 
+**Flicker result:**
 ```json
 {
   "Code":   100,
-  "Event":  "Flicker_Start",
-  "Detail": "Object: Door_Single; Hz: 15",
+  "Event":  "Flicker",
+  "Detail": "Door_Single",
   "Remark": {
     "Detected_Frequency": 15.0,
-    "Confidence_Score":   0.83,
+    "Confidence_Score":   0.93,
     "SSVEP_Present":      true,
-    "FFT_Score":          0.74,
-    "PSD_Score":          0.68,
-    "CCA_Score":          0.91
+    "FBCCA_Score":        0.93
+  }
+}
+```
+
+**Prediction result:**
+```json
+{
+  "Code":   302,
+  "Event":  "Predict Door Imagery",
+  "Detail": "eye closed",
+  "Remark": {
+    "Model":               "IMAGERY",
+    "Prediction":          "OBJ1",
+    "Confidence":          0.96,
+    "Agreement":           0.87,
+    "Imagery_Prediction":  "None",
+    "Imagery_Confidence":  0.0
   }
 }
 ```
@@ -102,20 +159,20 @@ Every packet Python sends to Unity is a single JSON string pushed over the `BCIB
 | Field | Owner | Description |
 |---|---|---|
 | `Code` | Python | One of the integer `BCICode`s (see below). |
-| `Event` | Unity | Echoed back verbatim. |
-| `Detail` | Unity | Echoed back verbatim. |
-| `Remark` | Python | All ML / signal-processing findings, scores, and debug details. |
+| `Event` | Unity | Echoed back verbatim from the Unity marker log. |
+| `Detail` | Unity | Echoed back verbatim from the Unity marker log. |
+| `Remark` | Python | All ML / signal-processing findings, scores, and diagnostics. |
 
 ### Code Reference Table
 
 | Code | Constant | Trigger Condition |
 |------|----------|---------|
 | **100** | `FLICKER_DETECTED` | SSVEP present at the target frequency |
-| **101** | `FLICKER_NOT_DETECTED` | SSVEP absent |
-| **201** | `ACTIVE_OBJ1_TRAIN_COMPLETE` | Enough ACTIVE epochs collected for Door 1 |
-| **202** | `ACTIVE_OBJ2_TRAIN_COMPLETE` | Enough ACTIVE epochs collected for Door 2 |
-| **203** | `IMAGERY_OBJ1_TRAIN_COMPLETE` | Enough IMAGERY epochs collected for Door 1 |
-| **204** | `IMAGERY_OBJ2_TRAIN_COMPLETE` | Enough IMAGERY epochs collected for Door 2 |
+| **101** | `FLICKER_NOT_DETECTED` | SSVEP absent (pushed on `Flicker_End`) |
+| **201** | `ACTIVE_OBJ1_TRAIN_COMPLETE` | Active training epoch buffer full for Door 1 |
+| **202** | `ACTIVE_OBJ2_TRAIN_COMPLETE` | Active training epoch buffer full for Door 2 |
+| **203** | `IMAGERY_OBJ1_TRAIN_COMPLETE` | Imagery training epoch buffer full for Door 1 |
+| **204** | `IMAGERY_OBJ2_TRAIN_COMPLETE` | Imagery training epoch buffer full for Door 2 |
 | **300** | `ACTIVE_OBJ1_PREDICT` | ACTIVE model predicts Door 1 |
 | **301** | `ACTIVE_OBJ2_PREDICT` | ACTIVE model predicts Door 2 |
 | **302** | `IMAGERY_OBJ1_PREDICT` | IMAGERY model predicts Door 1 |
@@ -125,52 +182,64 @@ Every packet Python sends to Unity is a single JSON string pushed over the `BCIB
 
 ## State Machine
 
-The system logic is driven entirely by the `Action` string parsed from the Unity logs. 
+The system logic is driven by the `Action` string (field 6) parsed from the Unity marker log.
 
 ### Full Flow Diagram
 
 ```text
               ┌──────────┐
-              │   IDLE   │◄──────────────────────────────────────────┐
-              └────┬─────┘                                           │
-                   │ (Unity Action received via LSL)                 │
-    ┌──────────────┼────────────────────────────────┐                │
-    │              │                                │                │
-    ▼              ▼                                ▼                │
-SSVEP_TEST   TRAIN_ACTIVE_OBJ1               TRAIN_IMAGERY_OBJ1      │
-    │         TRAIN_ACTIVE_OBJ2               TRAIN_IMAGERY_OBJ2     │
-    │              │                                │                │
-    │   detect()   │  collect n_train_epochs        │                │
-    │  → push 100  │  → push 201/202              push 203/204       │
-    │    or 101    │                                │                │
-    │              │                                │                │
-    │  Flicker_End │          Train_End             │                │
-    └──────────────┴────────────────────────────────┘                │
-                                │                                    │
-                           _attempt_training()                       │
-                           ACTIVE model fit()                        │
-                           IMAGERY model fit()                       │
-                                │                                    │
-                           ┌────────────────┐     ┌─────────────────┐        │
-                           │ PREDICT_ACTIVE │     │ PREDICT_IMAGERY │        │
-                           └────────┬───────┘     └────────┬────────┘        │
-                                 push 300/301          push 303/304          │
+              │   IDLE   │◄──────────────────────────────────────────────┐
+              └────┬─────┘                                               │
+                   │ (Action received from Unity via LSL)                │
+    ┌──────────────┼────────────────────────────────┐                    │
+    │              │                                │                    │
+    ▼              ▼                                ▼                    │
+SSVEP_TEST   TRAIN_ACTIVE_OBJ1/2           TRAIN_IMAGERY_OBJ1/2         │
+    │         (sliding ring buffer)          (sliding ring buffer)       │
+    │              │                                │                    │
+    │   Continuous │                                │                    │
+    │   FBCCA on   │  *_End marker received         │                    │
+    │   sliding    │  → Transition to IDLE          │                    │
+    │   windows    │                                │                    │
+    │              │                                │                    │
+    │  Flicker_End │          Train_End             │                    │
+    └──────────────┴────────────────────────────────┘                    │
+           │                      │                                      │
+    _finalize_flicker()     _attempt_training()                          │
+    Max-confidence           ACTIVE.fit()                                │
+    pushed once              IMAGERY.fit()                               │
+                             MIXED.fit()                                 │
+                                  │                                      │
+                 ┌────────────────┼────────────────┐                     │
+                 ▼                ▼                ▼                     │
+          PREDICT_ACTIVE  PREDICT_IMAGERY  PREDICT_MIXED                 │
+                 │                │                │                     │
+                 └────────────────┴────────────────┘                     │
+                    Accumulate predictions until agreement               │
+                    + confidence thresholds met → push 300-303           │
+                    Predict_End ─────────────────────────────────────────┘
 ```
 
 ### Action → State Transitions
 
 | Unity `Action` string | Resulting State | Notes |
 |---|---|---|
-| `Flicker_Start` | `SSVEP_TEST` | Begins analyzing epochs for SSVEP. |
-| `Flicker_End` | `IDLE` | Stops analysis. |
-| `Training_Active_Door1_Start` | `TRAIN_ACTIVE_OBJ1` | Buffers ACTIVE data for class 0. |
-| `Training_Active_Door2_Start` | `TRAIN_ACTIVE_OBJ2` | Buffers ACTIVE data for class 1. |
-| `Training_Imagery_Door1_Start` | `TRAIN_IMAGERY_OBJ1` | Buffers IMAGERY data for class 0. |
-| `Training_Imagery_Door2_Start` | `TRAIN_IMAGERY_OBJ2` | Buffers IMAGERY data for class 1. |
-| `Train_End` | `IDLE` | Automatically triggers `_attempt_training()` first. |
-| `Predict_Start_Active` | `PREDICT_ACTIVE` | Begins evaluating epochs against the ACTIVE model. |
-| `Predict_Start_Imagery` | `PREDICT_IMAGERY` | Begins evaluating epochs against the IMAGERY model. |
+| `Flicker_Start` | `SSVEP_TEST` | Enables continuous FBCCA sliding-window detection. Buffer is NOT cleared. |
+| `Flicker_End` | `IDLE` | Finalises the flicker by pushing the max-confidence aggregated result. |
+| `Training_Active_Door1_Start` | `TRAIN_ACTIVE_OBJ1` | Starts filling the active sliding buffer for class 0. |
+| `Training_Active_Door1_End` | `IDLE` | Stops buffering Door 1 active data. |
+| `Active_Training_Door2_Start` | `TRAIN_ACTIVE_OBJ2` | Starts filling the active sliding buffer for class 1. |
+| `Active_Training_Door2_End` | `IDLE` | Stops buffering Door 2 active data. |
+| `Training_Imagery_Door1_Start` | `TRAIN_IMAGERY_OBJ1` | Starts filling the imagery sliding buffer for class 0. |
+| `Training_Imagery_Door1_End` | `IDLE` | Stops buffering Door 1 imagery data. |
+| `Image_Training_Door2_Start` | `TRAIN_IMAGERY_OBJ2` | Starts filling the imagery sliding buffer for class 1. |
+| `Image_Training_Door2_End` | `IDLE` | Stops buffering Door 2 imagery data. |
+| `Train_End` | `IDLE` | Triggers `_attempt_training()` — fits ACTIVE, IMAGERY and MIXED models. |
+| `Predict_Start_Active` | `PREDICT_ACTIVE` | Begins accumulating ACTIVE model predictions. |
+| `Predict_Start_Imagery` | `PREDICT_IMAGERY` | Begins accumulating IMAGERY model predictions. |
+| `Start_predict` | `PREDICT_MIXED` | Begins accumulating MIXED model predictions. |
 | `Predict_End` | `IDLE` | Stops prediction. |
+| `Set_Target_Frequency` | — | Updates `target_freq` and `SSVEPDetector.target_freq` live, no state change. |
 
 ---
 
@@ -178,86 +247,88 @@ SSVEP_TEST   TRAIN_ACTIVE_OBJ1               TRAIN_IMAGERY_OBJ1      │
 
 ### Global EEG Preprocessing
 
-Applied to **every** incoming EEG epoch across **all** states before any method-specific processing. This ensures the baseline signal is completely uniform before feature extraction.
+Applied to **every** incoming EEG epoch across **all** states before any method-specific processing:
 
 ```text
 Raw 16-ch epoch (n_channels × n_samples)
     │
-    ▼ 50 Hz Notch filter  (IIR, Q=30)
+    ▼ 50 Hz Notch filter  (IIR, Q=30, scipy.signal.iirnotch)
     │
-    ▼ 8–30 Hz Bandpass filter  (4th-order Butterworth, SOS zero-phase)
+    ▼ 1–90 Hz Bandpass filter  (4th-order Butterworth, SOS zero-phase)
     │
-    ▼ Per-channel Z-score normalisation
-    │
-    └─► Pre-processed epoch → SSVEPDetector or ObjectClassifier
+    └─► Pre-processed epoch → SSVEPDetector or Classifier
 ```
+
+> The upper limit of the bandpass is 90 Hz to preserve the high-frequency harmonics required by FBCCA for accurate detection of 15 Hz and its harmonics.
 
 ### SSVEP Detection (`flicker.py`)
 
-`SSVEPDetector` performs its own secondary bandpass (1–40 Hz, configurable) on top of the global preprocessing, then runs three independent sub-methods. Their scores are combined using a configurable weighted ensemble:
+`SSVEPDetector` uses **FBCCA** (Filter-Bank CCA) to score each sliding epoch against the target frequency. Detection runs **continuously** in the `SSVEP_TEST` state — one score is computed every `step_size` seconds (default: 0.2 s). The EEG buffer is never cleared when entering this state.
 
-| Sub-method | Description | Default Weight |
-|---|---|---|
-| **FFT** | Mean spectral amplitude at f, 2f, 3f normalised by total band power | 1.0 |
-| **Welch PSD** | Log-compressed SNR at target frequency vs. neighbouring bins | 1.0 |
-| **CCA** | Maximum canonical correlation against synthetic sine/cosine references | 1.5 |
+**Detection Logic:**
+1. On `Flicker_Start`: `SSVEP_TEST` state is entered. `_flicker_results` list is cleared.
+2. Every 0.2 s: FBCCA is run on the current 1.0-second sliding window. The `FlickerResult` is appended to `_flicker_results`.
+3. On `Flicker_End`: `_finalize_flicker()` takes the **maximum confidence** across all accumulated windows, decides `FLICKER_DETECTED (100)` vs `FLICKER_NOT_DETECTED (101)`, and pushes a **single aggregated result** to Unity.
 
-If `ensemble_score >= detection_threshold` (default `0.55`), the result is `FLICKER_DETECTED (100)`. Otherwise, `FLICKER_NOT_DETECTED (101)`.
+**FBCCA Filter-Bank parameters (defaults):**
+
+| Parameter | Value |
+|---|---|
+| `fbcca_num_bands` | 5 |
+| `fbcca_a` | 1.25 |
+| `fbcca_b` | 0.25 |
+| `fbcca_band_width` | 8.0 Hz |
+| `n_harmonics` | 3 |
+| `occipital_channels` | [6, 7] (O1, O2) |
+
+If `max(fbcca_score) >= detection_threshold` (default `0.4`), the result is `FLICKER_DETECTED (100)`. Otherwise, `FLICKER_NOT_DETECTED (101)`.
 
 ### Object Classification (`prediction.py`)
 
-`ObjectClassifier` implements a robust prediction pipeline using `mne` and `scikit-learn`. There are two entirely independent models: `active_model` and `imagery_model`.
+Three independent classifiers are trained when `Train_End` is received. Each uses a **Vectorizer → StandardScaler → LinearSVC** time-domain pipeline.
 
-**Training** (triggered by `Train_End`):
-```text
-Training epochs (n_trials × n_channels × n_samples)
-    │
-    ▼ CSP.fit_transform(X, y)
-      → 4 spatial components, extracts log-variance features
-    │
-    ▼ LDA.fit(X_features, y)
-    │
-    └─► Model is ready
-```
+| Classifier | Training Data | Use Case |
+|---|---|---|
+| `ActiveClassifier` | Active attention epochs (Door 1 vs Door 2) | `PREDICT_ACTIVE` state |
+| `ImageryClassifier` | Motor imagery epochs (Door 1 vs Door 2) | `PREDICT_IMAGERY` state |
+| `MixedClassifier` | Combined active + imagery epochs | `PREDICT_MIXED` state |
 
-**Prediction** (in `PREDICT_ACTIVE` or `PREDICT_IMAGERY` state):
-```text
-Single epoch (n_channels × n_samples)
-    │
-    ▼ CSP.transform(X)
-    │
-    ▼ LDA.predict(X_features) + LDA.predict_proba(X_features)
-    │
-    └─► (predicted_label, confidence)
-```
+Training epoch buffers are **ring buffers** (`deque(maxlen=n_train_epochs)`), so they naturally contain the most recent `n_train_epochs` samples at all times.
 
-During the `PREDICT_ACTIVE` or `PREDICT_IMAGERY` state, the respective model evaluates the incoming epoch and emits its JSON message to Unity.
+**Stable Prediction (accumulation buffer):**
+
+Predictions are not emitted immediately. A rolling `_predict_buffer` accumulates `(pred, conf)` pairs. A result is only pushed to Unity when:
+- **Agreement** (fraction of buffer agreeing on the same class) ≥ `predict_agreement_threshold` (default: 0.75)
+- **Average Confidence** across the buffer ≥ `predict_confidence_threshold` (default: 0.7)
+
+This prevents noisy single-window misfires from reaching Unity.
 
 ---
 
 ## Threading Model
 
-The backend is built for zero-blocking real-time processing using three daemon threads.
+The backend is built for zero-blocking real-time processing using three daemon threads:
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Thread 1  (Thread-EEG)                                         │
-│  pull_sample() → deque(maxlen=epoch_samples)                    │
+│  pull_sample() → deque ring buffer (maxlen=epoch_samples)       │
 │  Sets _eeg_ready Event when buffer is full                      │
 ├─────────────────────────────────────────────────────────────────┤
 │  Thread 2  (Thread-Marker)                                      │
 │  pull_sample(timeout=0.0)  ← NON-BLOCKING                       │
-│  Parses CSV → stores event/detail, puts action → queue.Queue   │
+│  Parses CSV → bundles {action, event, detail} → queue.Queue     │
 ├─────────────────────────────────────────────────────────────────┤
 │  Thread 3  (Thread-Logic)                                       │
-│  Drains marker queue → calls _handle_marker() → state change   │
-│  Waits on _eeg_ready → snapshots epoch → _process_epoch()      │
-│  Builds JSON → pushes via LSL outlet                           │
+│  Drains marker queue → _handle_marker_payload() → state change  │
+│  Waits on _eeg_ready → snapshots epoch → _process_epoch()       │
+│  Builds JSON → pushes via LSL outlet                            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-> **Why non-blocking marker pull?**
-> Thread 2 uses `pull_sample(timeout=0.0)` so it **never blocks the GIL** waiting for network I/O. A `time.sleep(0.001)` yields the GIL at a stable ~1 kHz polling cadence.
+> **Marker atomicity**: Thread 2 bundles all three marker fields (`action`, `event`, `detail`) into a single dict before enqueuing. Thread 3 (the logic thread) is the sole owner of `_last_unity_event` / `_last_unity_detail`, and updates them only for non-flicker transitions. This prevents the `Flicker_End` event from overwriting the `Flicker_Start` metadata that `_finalize_flicker()` needs to echo back to Unity.
+
+> **Non-blocking marker pull**: Thread 2 uses `pull_sample(timeout=0.0)` so it **never blocks the GIL** waiting for network I/O. A `time.sleep(0.001)` yields the GIL at a stable ~1 kHz polling cadence.
 
 ---
 
@@ -269,10 +340,10 @@ The backend is built for zero-blocking real-time processing using three daemon t
 |---|---|---|
 | **Python** | ≥ 3.9 | Core runtime |
 | **numpy** | ≥ 1.24 | Matrix operations |
-| **scipy** | ≥ 1.11 | Filtering (Notch, Butterworth, Welch PSD) |
+| **scipy** | ≥ 1.11 | Filtering (Notch, Butterworth) |
 | **pylsl** | ≥ 1.16 | Lab Streaming Layer networking |
-| **mne** | ≥ 1.0 | Common Spatial Patterns (CSP) |
-| **scikit-learn** | ≥ 1.2 | Linear Discriminant Analysis (LDA) |
+| **mne** | ≥ 1.0 | EEG data utilities (CSP Vectorizer used by prediction pipeline) |
+| **scikit-learn** | ≥ 1.2 | SVM classifiers and preprocessing |
 
 ### Environment Setup
 
@@ -289,7 +360,7 @@ source .venv/bin/activate        # macOS / Linux
 pip install numpy scipy pylsl mne scikit-learn
 ```
 
-> **OpenBCI Hardware**: Ensure the OpenBCI GUI (or BrainFlow) is running and broadcasting a `type="EEG"` LSL stream before launching `main.py`. If no stream is detected, the backend gracefully falls back to generating simulated Gaussian noise for testing.
+> **OpenBCI Hardware**: Ensure the OpenBCI GUI (or BrainFlow) is running and broadcasting a `type="EEG"` LSL stream before launching `main.py`. If no stream is detected within `--resolve-timeout` seconds, the backend falls back to generating simulated Gaussian noise so the pipeline logic can still be tested.
 
 ---
 
@@ -298,31 +369,31 @@ pip install numpy scipy pylsl mne scikit-learn
 ### Command Line Execution
 
 ```bash
-# Default settings: 10 Hz target, 250 Hz sampling, 4-second epochs
+# Default settings: 15 Hz target, 250 Hz sampling, 1-second epochs
 python main.py
 
-# Custom: 15 Hz flicker, 256 Hz hardware, 3-second analysis window
-python main.py --target-freq 15 --sfreq 256 --epoch-duration 3
+# Custom: different target frequency, 2-second analysis window
+python main.py --target-freq 10 --epoch-duration 2
 
-# Collect 20 training epochs per object
-python main.py --n-train-epochs 20
-
-# Verbose debug output (shows per-method sub-scores)
+# Verbose debug output (shows per-window FBCCA scores)
 python main.py --log-level DEBUG
+
+# Send test heartbeat messages every 2s to verify Unity connection
+python main.py --test-mode
 ```
 
 ### Configuration Reference
 
 | Argument | Default | Description |
 |---|---|---|
-| `--target-freq` | `10.0` | SSVEP stimulus frequency to detect (Hz). |
+| `--target-freq` | `15.0` | SSVEP stimulus frequency to detect (Hz). Can also be updated live by Unity's `Set_Target_Frequency` marker. |
 | `--sfreq` | `250.0` | EEG hardware sampling rate (Hz). |
-| `--epoch-duration` | `4.0` | Length of the EEG analysis window (s). |
-| `--n-train-epochs` | `10` | Epochs required per object to complete training. |
-| `--detection-threshold` | `0.55` | Minimum weighted ensemble score for SSVEP detection. |
-| `--resolve-timeout` | `10.0` | Seconds to search for each LSL stream before giving up. |
+| `--epoch-duration` | `1.0` | Length of each sliding EEG analysis window (s). |
+| `--n-train-epochs` | `30` | Ring buffer size per class per object during training. |
+| `--detection-threshold` | `0.4` | Minimum FBCCA score for `FLICKER_DETECTED`. |
+| `--resolve-timeout` | `10.0` | Seconds to search for each LSL stream before falling back to simulation. |
 | `--log-level` | `INFO` | Logging verbosity (`DEBUG` / `INFO` / `WARNING` / `ERROR`). |
-| `--test-mode` | `false` | Emit dummy heartbeat messages every 2s for connection testing. |
+| `--test-mode` | `false` | Emit dummy heartbeat messages every 2 s for Unity connection testing. |
 
 ---
 
@@ -337,7 +408,7 @@ python main.py --log-level DEBUG
 
 ### Receiving BCI Results in Unity
 
-Your `LSLCommunicationManager` should resolve the `BCIBackend` outlet and parse each JSON message into a struct.
+Your `LSLCommunicationManager` should resolve the `BCIBackend` outlet and parse each JSON message:
 
 **Data Classes:**
 ```csharp
@@ -349,51 +420,53 @@ public class BCIMessage {
 }
 
 public class BCIRemark {
+    // SSVEP fields
     public float  Detected_Frequency;
     public float  Confidence_Score;
     public bool   SSVEP_Present;
-    public string Message;
-    public int    Epochs_Collected;
-    public int    Target_Epochs;
-    public string Object;
+    public float  FBCCA_Score;
+    // Prediction fields
     public string Model;
     public string Prediction;
     public float  Confidence;
+    public float  Agreement;
+    public string Imagery_Prediction;
+    public float  Imagery_Confidence;
 }
 ```
 
-**Subscription Pattern:**
+**Flicker Response Pattern (BB.cs / OB.cs):**
 ```csharp
-private void OnEnable()
+// Unity validates the echo by matching Event + Detail to what it sent
+private void HandleFlickerLSL(BCIMessage msg)
 {
-    LSLCommunicationManager.Instance.OnFlickerStateChanged  += HandleFlicker;
-    LSLCommunicationManager.Instance.OnPredictionResult     += HandlePrediction;
+    if (msg.Event != lastEvent || msg.Detail != lastDetail) return;
+    if (msg.Code == (int)BCICommand.FlickerDetected)
+        ExecuteAction();
 }
+```
 
-private void HandleFlicker(bool detected, BCIMessage msg)
+**Prediction Response Pattern (Test3D.cs):**
+```csharp
+public void HandlePredictionLSL(BCIMessage msg)
 {
-    // Ensure the message belongs to this specific object's event
-    if (msg.Event == lastEvent && msg.Detail == lastDetail)
-    {
-        if (detected) ExecuteAction();
-    }
-}
+    if (door1 != null && msg.Code == (int)door1.doorCode)
+        door1.TriggerInteraction();
+    else if (door2 != null && msg.Code == (int)door2.doorCode)
+        door2.TriggerInteraction();
 
-private void HandlePrediction(int code)
-{
-    // 300 = ACTIVE Door 1 | 303 = IMAGERY Door 1
-    if (code == 300 || code == 303) OpenDoor1();
-    else OpenDoor2();
+    // Signal the end of prediction phase back to Python
+    LSL_Logger.Instance?.LogEvent("Predict_End", "Prediction_Phase", "Predict_End");
 }
 ```
 
 ---
 
-## Testing the Connection
+## Testing & Replay
+
+### Connection Test (`test_unitypythontest.py`)
 
 `test_unitypythontest.py` simulates the full Unity → Python → Unity LSL round-trip without needing the Unity Editor open.
-
-**Usage (Requires two terminal windows):**
 
 ```bash
 # Terminal 1: Start the BCI backend
@@ -403,27 +476,29 @@ python main.py --log-level DEBUG
 python test_unitypythontest.py
 ```
 
-The test script:
-1. Creates an LSL outlet (type `"Markers"`) and sends mock Unity CSV log entries (including training loops and predictions).
-4. Listens on the `"BCIResult"` outlet and prints every JSON message Python sends back.
-
 ### Replaying XDF Files (`testxdfmain.py`)
 
-If you have recorded an experiment using LabRecorder, you can replay the `.xdf` file directly into `main.py` using the `testxdfmain.py` script. This reads both the Unity Marker and OpenBCI EEG streams from the file and replays them over LSL exactly as they occurred in real-time.
-
-> **Requirement**: You must have `pyxdf` installed (`pip install pyxdf`) to run this script.
-
-**Usage (Requires two terminal windows):**
+Replay a LabRecorder `.xdf` file directly into `main.py`. The script reads both the Unity Marker and OpenBCI EEG streams from the file and replays them over LSL at real-time (or configurable) speed.
 
 ```bash
+# Install pyxdf first
+pip install pyxdf
+
 # Terminal 1: Start the BCI backend
 python main.py --log-level DEBUG
 
-# Terminal 2: Run the XDF replayer (e.g. at 1x real-time speed)
-python testxdfmain.py mixdata2104.xdf
+# Terminal 2: Replay the XDF file
+python testxdfmain.py /path/to/recording.xdf
 
-# Or replay at 2x speed for faster testing:
-python testxdfmain.py mixdata2104.xdf --speed 2.0
+# Or replay at 2x speed for faster testing
+python testxdfmain.py /path/to/recording.xdf --speed 2.0
+```
+
+### Monitoring Output (`print_results.py`)
+
+```bash
+# Terminal 3: Watch the JSON result stream in real time
+python print_results.py
 ```
 
 ---
@@ -432,25 +507,30 @@ python testxdfmain.py mixdata2104.xdf --speed 2.0
 
 ### "No EEG LSL stream found"
 - Confirm the OpenBCI GUI Networking panel has **LSL → Start** active.
-- List all visible streams via python: `python -c "from pylsl import resolve_streams; print(resolve_streams())"`
+- List all visible streams: `python -c "from pylsl import resolve_streams; print(resolve_streams())"`
 - Check firewall / VPN — LSL uses multicast UDP on port `16571`.
-- *Note: If hardware is unavailable, Python automatically generates simulated Gaussian noise so you can test the pipeline logic regardless.*
+- *If hardware is unavailable, Python automatically generates simulated Gaussian noise so you can test the pipeline logic regardless.*
 
 ### "No Marker LSL stream found"
 - Confirm the Unity project has `LSL_Logger` active and `LSLCommunicationManager` set to stream type `"Markers"`.
 - Ensure Unity and Python are on the same local network subnet or loopback (`127.0.0.1`).
 
 ### SSVEP is rarely detected or throws false positives
-- **Rarely detected:** Lower `--detection-threshold` (e.g. `0.45`).
-- **False positives:** Raise `--detection-threshold` (e.g. `0.65`).
-- Enable `--log-level DEBUG` to view per-method sub-scores (`FFT_Score`, `PSD_Score`, `CCA_Score`) in the terminal.
-- **CCA score always 0:** Check `occipital_channels` indices match your electrode layout.
+- **Rarely detected:** Lower `--detection-threshold` (e.g. `0.35`).
+- **False positives:** Raise `--detection-threshold` (e.g. `0.55`).
+- Enable `--log-level DEBUG` to see per-window `FBCCA_Score` values in the terminal.
+- Check `occipital_channels` indices in `SSVEPDetector` match your electrode layout (default: `[6, 7]` = O1, O2 on a standard 8-ch Cyton mapping).
+- Verify the target frequency matches the Unity flicker setting. The `Set_Target_Frequency` action from the Settings UI updates it live — check for a `[Logic] Target frequency set to X Hz` log line on startup and after each settings change.
 
-### Training fails silently
-- Verify `Train_End` is sent **after** both Door 1 and Door 2 epochs have been collected.
-- Check that at least `n_train_epochs` epochs arrived. If fewer epochs are available, Python logs a warning and skips `model.fit()`.
-- CSP requires a minimum of 2 classes × 2 epochs to compute covariance matrices.
+### Flicker result is `101` even with high FBCCA scores
+- The result pushed on `Flicker_End` is the **maximum FBCCA score** across all sliding windows during the flicker window. If no window exceeded the threshold, `101` is sent.
+- If the `Flicker_End` marker arrives before the buffer fills to `epoch_samples` (e.g. very short flicker duration), the window may be skipped. Try increasing `--epoch-duration` to `0.5` or ensuring flicker duration > epoch duration.
+
+### Predictions are not emitted
+- Verify `Train_End` was received **after** both Door 1 and Door 2 epochs were buffered.
+- Check logs for `[Logic] ACTIVE/IMAGERY/MIXED training skipped — insufficient epochs`. The ring buffer needs `n_train_epochs` samples per class.
+- Predictions are only emitted when `agreement >= 0.75` AND `avg_confidence >= 0.7`. If the model is uncertain, no result will be pushed. Tune `predict_agreement_threshold` and `predict_confidence_threshold` in the `BCIConfig` dataclass.
 
 ### High CPU usage
-- Reduce `sfreq` or increase `epoch_duration` to lower the analysis rate.
-- Thread 2 polls at ~1 kHz. You can adjust `time.sleep(0.001)` in `_marker_ingestion_loop` to `0.005` to trade a tiny amount of latency for CPU headroom.
+- Reduce `--sfreq` or decrease `--epoch-duration` to lower the processing rate.
+- Thread 2 polls at ~1 kHz. Adjust `time.sleep(0.001)` in `_marker_ingestion_loop` to `0.005` to trade a small amount of marker latency for CPU headroom.

@@ -7,6 +7,7 @@ import re
 import threading
 import time
 from collections import Counter, deque
+from dataclasses import dataclass, field
 from typing import Deque, List, Optional, Tuple
 
 import numpy as np
@@ -28,15 +29,30 @@ try:
 except ImportError:
     _LSL_AVAILABLE = False
     logger.warning("pylsl not found. Running in SIMULATION mode - no real LSL streams.")
-"""LSL stream names in unity"""
+
 EEG_STREAM_TYPE: str = "EEG"
 MARKER_STREAM_TYPE: str = "Markers"
-"""LSL stream names in python"""
 OUTPUT_STREAM_NAME: str = "BCIBackend"
 OUTPUT_STREAM_TYPE: str = "BCIResult"
 OUTPUT_STREAM_CHANNELS: int = 1
 N_CHANNELS: int = 16
 DEFAULT_SFREQ: float = 250.0
+
+
+@dataclass
+class BCIConfig:
+    """Single source of truth for all BCIBackend configuration parameters."""
+    target_freq: float = 15.0
+    sfreq: float = DEFAULT_SFREQ
+    epoch_duration: float = 1.0
+    n_train_epochs: int = 30
+    detection_threshold: float = 0.4
+    resolve_timeout: float = 10.0
+    predict_accumulation_time: float = 3.0
+    predict_agreement_threshold: float = 0.75
+    predict_confidence_threshold: float = 0.7
+    eeg_stream_name: Optional[str] = None
+    marker_stream_name: Optional[str] = None
 
 
 class BCIState:
@@ -52,34 +68,21 @@ class BCIState:
 
 
 class BCIBackend:
-    def __init__(
-        self,
-        target_freq: float = 15.0,
-        sfreq: float = DEFAULT_SFREQ,
-        epoch_duration: float = 1.0,
-        eeg_stream_name: Optional[str] = None,
-        marker_stream_name: Optional[str] = None,
-        n_train_epochs: int = 30,
-        detection_threshold: float = 0.4,
-        resolve_timeout: float = 10.0,
-        predict_accumulation_time: float = 3.0,
-        predict_agreement_threshold: float = 0.75,
-        predict_confidence_threshold: float = 0.7,
-    ) -> None:
-        self.target_freq = float(target_freq)
-        self.sfreq = float(sfreq)
-        self.epoch_duration = float(epoch_duration)
-        self.eeg_stream_name = eeg_stream_name
-        self.marker_stream_name = marker_stream_name
-        self.n_train_epochs = int(n_train_epochs)
-        self.detection_threshold = float(detection_threshold)
-        self.resolve_timeout = float(resolve_timeout)
-        self.predict_accumulation_time = float(predict_accumulation_time)
-        self.predict_agreement_threshold = float(predict_agreement_threshold)
-        self.predict_confidence_threshold = float(predict_confidence_threshold)
+    def __init__(self, config: BCIConfig = BCIConfig()) -> None:
+        self.target_freq = float(config.target_freq)
+        self.sfreq = float(config.sfreq)
+        self.epoch_duration = float(config.epoch_duration)
+        self.eeg_stream_name = config.eeg_stream_name
+        self.marker_stream_name = config.marker_stream_name
+        self.n_train_epochs = int(config.n_train_epochs)
+        self.detection_threshold = float(config.detection_threshold)
+        self.resolve_timeout = float(config.resolve_timeout)
+        self.predict_accumulation_time = float(config.predict_accumulation_time)
+        self.predict_agreement_threshold = float(config.predict_agreement_threshold)
+        self.predict_confidence_threshold = float(config.predict_confidence_threshold)
 
         self.step_size = 0.2
-        self.latency_shift_s = 0.0
+        self.latency_shift_s = 0.5
         self._last_process_time = 0.0
         self._ignore_samples = 0
 
@@ -619,18 +622,20 @@ class BCIBackend:
 # ---------------------------------------------------------------------------
 
 def _parse_args() -> argparse.Namespace:
+    defaults = BCIConfig()
     parser = argparse.ArgumentParser(
         description="Real-Time BCI Backend (OpenBCI + Unity LSL)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--target-freq", type=float, default=15.0, metavar="HZ", help="SSVEP stimulus frequency.")
-    parser.add_argument("--sfreq", type=float, default=DEFAULT_SFREQ, metavar="HZ", help="EEG sampling rate.")
-    parser.add_argument("--epoch-duration", type=float, default=1.0, metavar="S", help="Analysis window length (s).")
-    parser.add_argument("--n-train-epochs", type=int, default=30, help="Epochs per object during training.")
-    parser.add_argument("--detection-threshold", type=float, default=0.4, help="Minimum ensemble score for SSVEP detection.")
-    parser.add_argument("--resolve-timeout", type=float, default=10.0, metavar="S", help="Seconds to wait for each LSL stream.")
-    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO", help="Logging verbosity.")
-    parser.add_argument("--test-mode", action="store_true", help="Send dummy LSL messages every 2s to test Unity connection.")
+    parser.add_argument("--target-freq",           type=float, default=defaults.target_freq,              metavar="HZ", help="SSVEP stimulus frequency.")
+    parser.add_argument("--sfreq",                 type=float, default=defaults.sfreq,                   metavar="HZ", help="EEG sampling rate.")
+    parser.add_argument("--epoch-duration",        type=float, default=defaults.epoch_duration,           metavar="S",  help="Analysis window length (s).")
+    parser.add_argument("--n-train-epochs",        type=int,   default=defaults.n_train_epochs,                        help="Ring buffer size per class during training.")
+    parser.add_argument("--detection-threshold",   type=float, default=defaults.detection_threshold,                   help="Minimum FBCCA score for FLICKER_DETECTED.")
+    parser.add_argument("--resolve-timeout",       type=float, default=defaults.resolve_timeout,          metavar="S",  help="Seconds to wait for each LSL stream.")
+    parser.add_argument("--log-level",             choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+                                                   default="INFO",                                                      help="Logging verbosity.")
+    parser.add_argument("--test-mode",             action="store_true",                                                help="Send dummy LSL messages every 2s to test Unity connection.")
     return parser.parse_args()
 
 
@@ -638,7 +643,7 @@ def main() -> None:
     args = _parse_args()
     logging.getLogger().setLevel(getattr(logging, args.log_level))
 
-    backend = BCIBackend(
+    config = BCIConfig(
         target_freq=args.target_freq,
         sfreq=args.sfreq,
         epoch_duration=args.epoch_duration,
@@ -647,6 +652,7 @@ def main() -> None:
         resolve_timeout=args.resolve_timeout,
     )
 
+    backend = BCIBackend(config)
     backend.start()
 
     if args.test_mode:
