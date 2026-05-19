@@ -1,0 +1,27 @@
+How to operate files in the check folder:
+
+1. test_unitypythontest.py
+   -----------------------
+   Description:
+   Simulates a full Unity -> Python -> Unity LSL round-trip connection without requiring the actual Unity Editor to be open. It sends predefined CSV markers representing typical session actions (Flicker start/end, Training start/end, and Predict commands) and receives/logs the JSON outputs from BCIBackend.
+
+   How to operate:
+   a. In Terminal 1, start the main BCI backend:
+      python main.py --log-level DEBUG
+   b. In Terminal 2, run the connection test script:
+      python check/test_unitypythontest.py
+
+2. testxdfmain.py
+   --------------
+   Description:
+   Replays a recorded LabRecorder `.xdf` file (which contains EEG and Markers) over local LSL streams to simulate a live experimental setup. Useful for debugging and validating the pipeline offline with real participant data.
+
+   How to operate:
+   a. Install pyxdf if you haven't already:
+      pip install pyxdf
+   b. In Terminal 1, start the main BCI backend:
+      python main.py --log-level DEBUG
+   c. In Terminal 2, run the replay script, passing the path to your .xdf file:
+      python check/testxdfmain.py /path/to/recording.xdf
+   d. Optional: Increase the replay playback speed (e.g. 2x speed):
+      python check/testxdfmain.py /path/to/recording.xdf --speed 2.0

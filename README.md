@@ -18,13 +18,13 @@ A real-time, 16-channel EEG BCI processing backend for OpenBCI + Unity VR experi
    - [Action → State Transitions](#action--state-transitions)
 6. [Signal Processing Pipelines](#signal-processing-pipelines)
    - [Global EEG Preprocessing](#global-eeg-preprocessing)
-   - [SSVEP Detection (flicker.py)](#ssvep-detection-flickerpy)
-   - [Object Classification (prediction.py)](#object-classification-predictionpy)
+   - [SSVEP Detection (ssvep.py)](#ssvep-detection-ssveppy)
+   - [Object Classification (classifiers.py)](#object-classification-classifierspy)
 7. [Threading Model](#threading-model)
 8. [Installation & Setup](#installation--setup)
 9. [Operation & CLI Arguments](#operation--cli-arguments)
 10. [Unity Integration Guide](#unity-integration-guide)
-11. [Testing & Replay](#testing--replay)
+11. [Monitoring Output](#monitoring-output)
 12. [Troubleshooting](#troubleshooting)
 
 ---
@@ -51,13 +51,23 @@ It handles two primary BCI paradigms simultaneously:
 
 ```text
 PythonBCI/
-├── main.py                  # Entry point: BCIConfig, threading, state machine, LSL I/O
-├── protocol.py              # BCICode IntEnum + build_message / parse_message helpers
-├── flicker.py               # SSVEPDetector: FBCCA-based SSVEP detection
-├── prediction.py            # ActiveClassifier, ImageryClassifier, MixedClassifier
-├── testxdfmain.py           # Replays a recorded .xdf file over LSL for offline testing
+├── main.py                  # CLI Entrypoint: parses arguments, starts BCIBackend
 ├── print_results.py         # Prints BCIBackend LSL stream output to the terminal
-├── test_unitypythontest.py  # Standalone LSL round-trip connection test
+├── bci/                     # Modular Layered Architecture package
+│   ├── domain/              # Domain Layer: Pure logic, no IO, no threading
+│   │   ├── config.py        # Centralized BCIConfig dataclass
+│   │   ├── codes.py         # BCICode IntEnum
+│   │   ├── state_machine.py # State machine states and transitions logic
+│   │   └── buffers.py       # Pure EEG and training epoch buffer structures
+│   ├── signal/              # Signal Processing Layer
+│   │   ├── preprocessing.py # Global EEG filtering functions
+│   │   └── ssvep.py         # FBCCA SSVEPDetector and FlickerResult logic
+│   ├── ml/                  # Machine Learning Layer
+│   │   ├── classifiers.py   # Active, Imagery, and Mixed classifier wrappers
+│   │   └── voting.py        # Prediction accumulator and stable voting logic
+│   └── infrastructure/      # Infrastructure Layer: External systems and IO
+│       ├── lsl_io.py        # pylsl StreamInlet, StreamOutlet, resolve_byprop setup
+│       └── protocol.py      # BCI JSON message building and parsing protocol
 └── README.md                # This documentation
 ```
 
@@ -65,7 +75,7 @@ PythonBCI/
 
 ## Configuration (BCIConfig)
 
-`BCIConfig` is a `@dataclass` in `main.py` and is the **single source of truth** for all configurable parameters. Defaults live here; `argparse` reads from them so there is no duplication.
+`BCIConfig` is a `@dataclass` in `bci/domain/config.py` and is the **single source of truth** for all configurable parameters. Defaults live here; `argparse` reads from them so there is no duplication.
 
 ```python
 @dataclass
@@ -85,7 +95,8 @@ class BCIConfig:
 
 **Usage — programmatic (e.g. from a test script):**
 ```python
-from main import BCIBackend, BCIConfig
+from bci.domain.config import BCIConfig
+from bci.application.backend import BCIBackend
 
 config = BCIConfig(target_freq=10.0, detection_threshold=0.35)
 backend = BCIBackend(config)
@@ -261,7 +272,7 @@ Raw 16-ch epoch (n_channels × n_samples)
 
 > The upper limit of the bandpass is 90 Hz to preserve the high-frequency harmonics required by FBCCA for accurate detection of 15 Hz and its harmonics.
 
-### SSVEP Detection (`flicker.py`)
+### SSVEP Detection (`bci/signal/ssvep.py`)
 
 `SSVEPDetector` uses **FBCCA** (Filter-Bank CCA) to score each sliding epoch against the target frequency. Detection runs **continuously** in the `SSVEP_TEST` state — one score is computed every `step_size` seconds (default: 0.2 s). The EEG buffer is never cleared when entering this state.
 
@@ -283,7 +294,7 @@ Raw 16-ch epoch (n_channels × n_samples)
 
 If `max(fbcca_score) >= detection_threshold` (default `0.4`), the result is `FLICKER_DETECTED (100)`. Otherwise, `FLICKER_NOT_DETECTED (101)`.
 
-### Object Classification (`prediction.py`)
+### Object Classification (`bci/ml/classifiers.py`)
 
 Three independent classifiers are trained when `Train_End` is received. Each uses a **Vectorizer → StandardScaler → LinearSVC** time-domain pipeline.
 
@@ -462,42 +473,12 @@ public void HandlePredictionLSL(BCIMessage msg)
 
 ---
 
-## Testing & Replay
+## Monitoring Output
 
-### Connection Test (`test_unitypythontest.py`)
-
-`test_unitypythontest.py` simulates the full Unity → Python → Unity LSL round-trip without needing the Unity Editor open.
+To monitor the outgoing BCI Result JSON stream in real time, you can run the `print_results.py` helper script:
 
 ```bash
-# Terminal 1: Start the BCI backend
-python main.py --log-level DEBUG
-
-# Terminal 2: Run the mock Unity sender/receiver
-python test_unitypythontest.py
-```
-
-### Replaying XDF Files (`testxdfmain.py`)
-
-Replay a LabRecorder `.xdf` file directly into `main.py`. The script reads both the Unity Marker and OpenBCI EEG streams from the file and replays them over LSL at real-time (or configurable) speed.
-
-```bash
-# Install pyxdf first
-pip install pyxdf
-
-# Terminal 1: Start the BCI backend
-python main.py --log-level DEBUG
-
-# Terminal 2: Replay the XDF file
-python testxdfmain.py /path/to/recording.xdf
-
-# Or replay at 2x speed for faster testing
-python testxdfmain.py /path/to/recording.xdf --speed 2.0
-```
-
-### Monitoring Output (`print_results.py`)
-
-```bash
-# Terminal 3: Watch the JSON result stream in real time
+# Watch the JSON result stream in real time
 python print_results.py
 ```
 

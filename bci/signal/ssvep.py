@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from typing import List, Tuple
+from dataclasses import dataclass
+from typing import List
 
 import numpy as np
 from scipy import signal as sp_signal
 from scipy.linalg import svd
 
-from protocol import BCICode
+from bci.domain.codes import BCICode
 
 logger = logging.getLogger(__name__)
 
