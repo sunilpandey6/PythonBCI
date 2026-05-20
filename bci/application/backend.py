@@ -82,6 +82,8 @@ class BCIBackend:
         self._last_unity_detail: str = ""
         self._unity_event_lock: threading.Lock = threading.Lock()
 
+        self.is_eye_closed: bool = False
+
         self._lsl_manager = LslManager(resolve_timeout=self.resolve_timeout)
         self._threads: List[threading.Thread] = []
 
@@ -216,6 +218,16 @@ class BCIBackend:
         action = payload["action"]
         logger.info("[Logic] Action received: '%s'", action)
 
+        if action == "Eye_Closed":
+            self.is_eye_closed = True
+            logger.info("[Logic] Eye closed. Pausing processing (preprocessor will return None).")
+            return
+
+        if action == "Eye_Opened":
+            self.is_eye_closed = False
+            logger.info("[Logic] Eye opened. Resuming processing.")
+            return
+
         if "Set_Target_Frequency" in action:
             match = re.search(r'[\d\.]+', action)
             if match:
@@ -254,7 +266,10 @@ class BCIBackend:
         logger.debug("[Logic] Unrecognised action: '%s' - ignored.", action)
 
     def _process_epoch(self, epoch: np.ndarray, state: str) -> None:
-        epoch = preprocess_global(epoch, self.sfreq)
+        processed = preprocess_global(epoch, self.sfreq, is_eye_closed=self.is_eye_closed, current_state=state)
+        if processed is None:
+            return
+        epoch = processed
         unity_event, unity_detail = self._read_unity_event()
 
         if state == BCIState.SSVEP_TEST:

@@ -2,13 +2,46 @@ from __future__ import annotations
 import numpy as np
 from scipy import signal
 
-def preprocess_global(epoch: np.ndarray, sfreq: float) -> np.ndarray:
-    """Notch (50 Hz) -> Bandpass (1.0-90.0 Hz)."""
+STATE_BANDPASS_MAP = {
+    "SSVEP_TEST": (1.0, 60.0),
+    "TRAIN_ACTIVE_OBJ1": (3.0, 60.0),
+    "TRAIN_ACTIVE_OBJ2": (3.0, 60.0),
+    "PREDICT_ACTIVE": (3.0, 60.0),
+    "TRAIN_IMAGERY_OBJ1": (1.0, 100.0),
+    "TRAIN_IMAGERY_OBJ2": (1.0, 100.0),
+    "PREDICT_IMAGERY": (1.0, 100.0),
+    "PREDICT_MIXED": (1.0, 100.0),
+}
+
+def preprocess_global(
+    epoch: np.ndarray,
+    sfreq: float,
+    is_eye_closed: bool = False,
+    current_state: str = "IDLE"
+) -> np.ndarray | None:
+    if is_eye_closed:
+        return None
     nyq = sfreq / 2.0
-    b_n, a_n = signal.iirnotch(50.0 / nyq, 30.0)
-    epoch_filt = signal.filtfilt(b_n, a_n, epoch, axis=-1)
     
-    sos = signal.butter(4, [1.0, min(90.0, nyq - 0.1)], btype="bandpass", fs=sfreq, output="sos")
+    epoch_filt = epoch.copy()
+    if 50.0 < nyq:
+        b50, a50 = signal.iirnotch(50.0 / nyq, 30.0)
+        epoch_filt = signal.filtfilt(b50, a50, epoch_filt, axis=-1)
+    if 100.0 < nyq:
+        b100, a100 = signal.iirnotch(100.0 / nyq, 30.0)
+        epoch_filt = signal.filtfilt(b100, a100, epoch_filt, axis=-1)
+    
+    low_cut, high_cut = STATE_BANDPASS_MAP.get(current_state, (1.0, 90.0))
+    low = max(0.1, low_cut)
+    high = min(high_cut, nyq - 0.1)
+    if low >= high:
+        low = 1.0
+        high = min(40.0, nyq - 0.1)
+        
+    sos = signal.butter(4, [low, high], btype="bandpass", fs=sfreq, output="sos")
     epoch_filt = signal.sosfiltfilt(sos, epoch_filt, axis=-1)
     
     return epoch_filt
+
+pre_process_epoch = preprocess_global
+
