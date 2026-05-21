@@ -10,7 +10,7 @@ class BCIConfig:
     target_freq: float = 15.0
     sfreq: float = DEFAULT_SFREQ
     epoch_duration: float = 1.0
-    n_train_epochs: int = 30
+    n_train_epochs: int = 20
     detection_threshold: float = 0.4
     resolve_timeout: float = 10.0
     predict_accumulation_time: float = 3.0
