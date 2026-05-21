@@ -239,18 +239,25 @@ SSVEP_TEST   TRAIN_ACTIVE_OBJ1/2           TRAIN_IMAGERY_OBJ1/2         │
 | `Flicker_End` | `IDLE` | Finalises the flicker by pushing the max-confidence aggregated result. |
 | `Training_Active_Door1_Start` | `TRAIN_ACTIVE_OBJ1` | Starts filling the active sliding buffer for class 0. |
 | `Training_Active_Door1_End` | `IDLE` | Stops buffering Door 1 active data. |
+| `Training_Active_Door1_Flicker_Start` | `TRAIN_ACTIVE_OBJ1` | Starts filling active sliding buffer for class 0 (flicker variant). |
+| `Training_Active_Door1_Flicker_End` | `IDLE` | Stops buffering Door 1 active flicker data. |
 | `Active_Training_Door2_Start` | `TRAIN_ACTIVE_OBJ2` | Starts filling the active sliding buffer for class 1. |
 | `Active_Training_Door2_End` | `IDLE` | Stops buffering Door 2 active data. |
 | `Training_Imagery_Door1_Start` | `TRAIN_IMAGERY_OBJ1` | Starts filling the imagery sliding buffer for class 0. |
 | `Training_Imagery_Door1_End` | `IDLE` | Stops buffering Door 1 imagery data. |
-| `Image_Training_Door2_Start` | `TRAIN_IMAGERY_OBJ2` | Starts filling the imagery sliding buffer for class 1. |
-| `Image_Training_Door2_End` | `IDLE` | Stops buffering Door 2 imagery data. |
+| `Image_Training_Door2_Start` | `TRAIN_IMAGERY_OBJ2` | Starts filling the imagery sliding buffer for class 1 (older variant). |
+| `Image_Training_Door2_End` | `IDLE` | Stops buffering Door 2 imagery data (older variant). |
+| `Training_Imagery_Door2_Start` | `TRAIN_IMAGERY_OBJ2` | Starts filling the imagery sliding buffer for class 1 (newer unified name). |
+| `Training_Imagery_Door2_End` | `IDLE` | Stops buffering Door 2 imagery data (newer unified name). |
 | `Train_End` | `IDLE` | Triggers `_attempt_training()` — fits ACTIVE, IMAGERY and MIXED models. |
 | `Predict_Start_Active` | `PREDICT_ACTIVE` | Begins accumulating ACTIVE model predictions. |
 | `Predict_Start_Imagery` | `PREDICT_IMAGERY` | Begins accumulating IMAGERY model predictions. |
 | `Start_predict` | `PREDICT_MIXED` | Begins accumulating MIXED model predictions. |
 | `Predict_End` | `IDLE` | Stops prediction. |
 | `Set_Target_Frequency` | — | Updates `target_freq` and `SSVEPDetector.target_freq` live, no state change. |
+| `Eye_Closed` | — | Sets `is_eye_closed = True` and pauses epoch processing. Bypasses state transitions. |
+| `Eye_Opened` | — | Sets `is_eye_closed = False` and resumes epoch processing. Bypasses state transitions. |
+
 
 ---
 
@@ -263,14 +270,31 @@ Applied to **every** incoming EEG epoch across **all** states before any method-
 ```text
 Raw 16-ch epoch (n_channels × n_samples)
     │
-    ▼ 50 Hz Notch filter  (IIR, Q=30, scipy.signal.iirnotch)
+    ▼ Eye Status Check (Bypasses and ignores epoch if is_eye_closed is True)
     │
-    ▼ 1–90 Hz Bandpass filter  (4th-order Butterworth, SOS zero-phase)
+    ▼ 50 Hz & 100 Hz Notch filters (Multi-harmonic powerline filtering, Q=30, scipy.signal.iirnotch)
+    │
+    ▼ Dynamic Bandpass filter (4th-order Butterworth, SOS zero-phase, cutoffs vary by state)
     │
     └─► Pre-processed epoch → SSVEPDetector or Classifier
 ```
 
-> The upper limit of the bandpass is 90 Hz to preserve the high-frequency harmonics required by FBCCA for accurate detection of 15 Hz and its harmonics.
+#### Eye-Status Gating
+If the Unity action `"Eye_Closed"` is received, the preprocessor immediately returns `None` and the current epoch is skipped (early exit in the logic thread, preventing it from reaching the training buffers or classifier prediction accumulators). Once `"Eye_Opened"` is received, normal preprocessing resumes.
+
+#### Multi-Harmonic Notch Filter
+To combat powerline noise and its harmonics, the system applies two narrow notch filters sequentially at:
+- **50 Hz** (fundamental)
+- **100 Hz** (second harmonic)
+
+Both filters are applied dynamically only if their target frequency is below the Nyquist frequency (`sfreq / 2.0`).
+
+#### Dynamic State-Dependent Bandpass Filter
+A 4th-order Butterworth bandpass filter is dynamically customized to isolate state-specific frequency bands and optimize SNR:
+- **`SSVEP_TEST`**: **1.0 to 60.0 Hz** to capture early harmonics.
+- **Active States** (`TRAIN_ACTIVE_OBJ1`, `TRAIN_ACTIVE_OBJ2`, `PREDICT_ACTIVE`): **3.0 to 60.0 Hz** to isolate focused intent and suppress slow eye-movement drifts.
+- **Imagery/Mixed States** (`TRAIN_IMAGERY_OBJ1`, `TRAIN_IMAGERY_OBJ2`, `PREDICT_IMAGERY`, `PREDICT_MIXED`): **1.0 to 100.0 Hz** to capture deep high-gamma frequency waves, letting the 100 Hz notch handle powerline harmonics.
+- **Fallback / IDLE**: **1.0 to 90.0 Hz**.
 
 ### SSVEP Detection (`bci/signal/ssvep.py`)
 
