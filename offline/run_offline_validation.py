@@ -188,22 +188,20 @@ def run_validation(xdf_file, speed=10.0, output_prefix="s4", selected_channels=N
     
     # 2. Extract training intervals from markers
     def extract_intervals(markers, start_labels, end_labels):
-    intervals = []
-    current_start = None
+        intervals = []
+        current_start = None
+        for ts, m_str in markers:
+            if any(label in m_str for label in start_labels):
+                current_start = ts
+            elif any(label in m_str for label in end_labels) and current_start is not None:
+                intervals.append((current_start, ts))
+                current_start = None
 
-    for ts, m_str in markers:
-        if any(label in m_str for label in start_labels):
-            current_start = ts
-
-        elif any(label in m_str for label in end_labels) and current_start is not None:
-            intervals.append((current_start, ts))
-            current_start = None
-
-    return intervals
+        return intervals
         
     class0_intervals = extract_intervals(marker_events, ["Training_Active_Door1_Start","TAD1S"], ["Training_Active_Door1_End","TAD1E"])
     class1_intervals = extract_intervals(marker_events, ["Active_Training_Door2_Start","TAD2S"], ["Active_Training_Door2_End","TAD2E"])
-    class2_intervals = extract_intervals(marker_events, ["Training_Active_Door1_Flicker_Start"], ["Training_Active_Door1_Flicker_End"])
+    class2_intervals = extract_intervals(marker_events, ["Training_Active_Door1_Flicker_Start","TF1S"], ["Training_Active_Door1_Flicker_End","TF1E"])
     
     print("\n--- Interval extraction summary ---")
     print(f"Class 0 (Door 1 Active) intervals: {len(class0_intervals)}")
