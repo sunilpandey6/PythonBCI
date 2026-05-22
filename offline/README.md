@@ -15,23 +15,39 @@ This directory contains the tools and scripts to record and validate the BCI mac
 
 ## Machine Learning Model Variants
 
-The pipeline trains and compares three model variants using a stratified **80-20 train-test split**:
+The pipeline trains and evaluates both Active and Imagery classification models using a stratified **80-20 train-test split**.
 
-1. **Variant 1 (Globally Normalized, All Channels)**:
-   - continuous EEG data is standardized globally (channel-by-channel subtraction of the mean and division by the standard deviation of the entire session) before extracting epochs.
-   - The ML training pipeline uses a Scikit-Learn `Pipeline` composed of an MNE `Vectorizer`, a `StandardScaler`, and a linear `SVC`.
-2. **Variant 2 (Raw / Non-Normalized, All Channels)**:
-   - continuous EEG data is kept raw (no session-wide normalization).
-   - The ML training pipeline uses `Vectorizer` and a linear `SVC` directly on raw continuous EEG.
-3. **Variant 3 (Raw / Selected Channels, Specific Subsets)**:
-   - continuous EEG data is kept raw.
-   - The dataset is sliced to include only a specific user-defined subset of channels (e.g., alternate channels or specific lobes) before feeding them to a pipeline of `Vectorizer` and a linear `SVC`.
+### 1. Active Classification Models
+Three variants are trained to classify Door 1 Active, Door 2 Active, and Door 1 Active Flicker:
+- **Variant 1 (Globally Normalized, All Channels)**:
+  - Continuous EEG data is standardized globally (channel-by-channel subtraction of the mean and division by the standard deviation of the entire session) before extracting epochs.
+  - The ML training pipeline uses a Scikit-Learn `Pipeline` composed of an MNE `Vectorizer`, a `StandardScaler`, and a linear `SVC`.
+- **Variant 2 (Raw / Non-Normalized, All Channels)**:
+  - Continuous EEG data is kept raw (no session-wide normalization).
+  - The ML training pipeline uses `Vectorizer` and a linear `SVC` directly on raw continuous EEG.
+- **Variant 3 (Raw / Selected Channels, Specific Subsets)**:
+  - Continuous EEG data is kept raw.
+  - The dataset is sliced to include only a specific user-defined subset of channels (e.g., specific channels like `[4, 5, 6, 7, 14, 15]`) before feeding them to a pipeline of `Vectorizer` and a linear `SVC`.
+
+### 2. Imagery Classification Models (No Normalization)
+Two variants are trained to classify Door 1 Imagery, Door 2 Imagery, and Door 1 Flicker (Class 2):
+- **Imagery V1 (CSP + LDA)**:
+  - Spatial patterns are extracted using Common Spatial Patterns (CSP) filtering (using MNE `CSP` with 4 components), followed by a `LinearDiscriminantAnalysis` classifier.
+- **Imagery V2 (Vectorizer + SVM)**:
+  - Replicates the Vectorizer + SVM structure of the Active models (without normalization).
 
 ### Classifier Classes
-- **Class 0**: Door 1 Active (`Training_Active_Door1_Start` / `End`)
+
+#### Active Classifier Classes
+- **Class 0**: Door 1 Active (`Training_Active_Door1_Start` / `End` or `TAD1S` / `TAD1E`)
   - *Note: SSVEP validation check on Class 0 training epochs is disabled to keep all scheduled epochs inside the target training class.*
-- **Class 1**: Door 2 Active (`Active_Training_Door2_Start` / `End`)
-- **Class 2**: Door 1 Active Flicker (`Training_Active_Door1_Flicker_Start` / `End` - explicit flicker trials)
+- **Class 1**: Door 2 Active (`Active_Training_Door2_Start` / `End` or `TAD2S` / `TAD2E`)
+- **Class 2**: Door 1 Active Flicker (`Training_Active_Door1_Flicker_Start` / `End` or `TF1S` / `TF1E`)
+
+#### Imagery Classifier Classes
+- **Class 0**: Door 1 Imagery (`Training_Imagery_Door1_Start` / `End` or `TID1S` / `TID1E`)
+- **Class 1**: Door 2 Imagery (`Image_Training_Door2_Start`/`TID2S`/`Training_Imagery_Door2_Start` to `Image_Training_Door2_End`/`TID2E`/`Training_Imagery_Door2_End`)
+- **Class 2**: Door 1 Flicker (`Training_Active_Door1_Flicker_Start` / `End` or `TF1S` / `TF1E` - flicker trials)
 
 ---
 
@@ -56,13 +72,13 @@ You do not need to manually start the replayer for this script. It automatically
 1. Open `run_offline_validation.py` and modify the target file or selected channels in the `__main__` section:
    ```python
    # Run validation using alternate channels:
-   run_validation("s4.xdf", speed=20.0, output_prefix="s4", selected_channels=[0, 2, 4, 6, 8, 10, 12, 14])
+   run_validation("s4.xdf", speed=20.0, output_prefix="s4", selected_channels=[4, 5, 6, 7, 14, 15])
    ```
 2. Execute the script:
    ```bash
    python3 PythonBCI/offline/run_offline_validation.py
    ```
-3. View the printed classification reports for the three variants and check the saved plot:
+3. View the printed classification reports for both Active and Imagery variants and check the saved plot:
    - Plot location: `PythonBCI/offline/confusion_matrices_<prefix>.png`
 
 ### Option B: Using the Jupyter Notebook (`offline.ipynb`)
@@ -72,10 +88,10 @@ You do not need to manually start the replayer for this script. It automatically
    ```
 2. Open `offline.ipynb` in your Jupyter interface or VS Code.
 3. Run the cells in order:
-   - **Step 1**: Configures imports and paths.
+   - **Step 1**: Configures imports and paths (including MNE CSP and LDA).
    - **Step 2 & 3**: Instantiates the `LslOfflineRecorder` and starts listening. The recorder automatically stops once the session end marker (`MLtest_End` or `Train_End`) is captured.
-   - **Step 4**: Scales timestamps, calculates global normalization parameters, extracts sliding epochs, and applies the SSVEP filter bypassed rules.
-   - **Step 5**: Slices channels, splits the datasets 80-20, fits all three SVM variants, and displays classification reports along with side-by-side confusion matrix heatmaps (Blue for Variant 1, Orange for Variant 2, Green for Variant 3).
+   - **Step 4**: Scales timestamps, calculates global normalization parameters, extracts sliding epochs (for both Active and Imagery classes), and applies the SSVEP filter bypassed rules.
+   - **Step 5**: Splits the datasets 80-20, fits all three Active SVM variants and both Imagery variants, and displays classification reports along with a 2x3 confusion matrix grid (Row 1: Active V1/V2/V3; Row 2: Imagery V1/V2).
 
 ---
 
