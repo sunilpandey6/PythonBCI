@@ -187,27 +187,70 @@ def run_validation(xdf_file, speed=10.0, output_prefix="s4", selected_channels=N
     
     eeg_data_norm = (eeg_data_arr - global_mean) / global_std
     
-    # 2. Extract training intervals from markers
-    def extract_intervals(markers, start_labels, end_labels):
-        intervals = []
-        current_start = None
-        for ts, m_str in markers:
-            if any(label in m_str for label in start_labels):
-                current_start = ts
-            elif any(label in m_str for label in end_labels) and current_start is not None:
-                intervals.append((current_start, ts))
-                current_start = None
-
-        return intervals
+    # 2. Extract training intervals from markers sequentially to distinguish active/imagery flicker classes
+    def extract_sequential_intervals(markers):
+        active_c0 = []
+        active_c1 = []
+        active_c2 = []
         
-    class0_intervals = extract_intervals(marker_events, ["Training_Active_Door1_Start","TAD1S"], ["Training_Active_Door1_End","TAD1E"])
-    class1_intervals = extract_intervals(marker_events, ["Active_Training_Door2_Start","TAD2S"], ["Active_Training_Door2_End","TAD2E"])
-    class2_intervals = extract_intervals(marker_events, ["Training_Active_Door1_Flicker_Start","TF1S"], ["Training_Active_Door1_Flicker_End","TF1E"])
-    
-    # Extract Imagery intervals (incorporating Class 2 for Door 1 Flicker as requested)
-    imagery_c0_intervals = extract_intervals(marker_events, ["Training_Imagery_Door1_Start", "TID1S"], ["Training_Imagery_Door1_End", "TID1E"])
-    imagery_c1_intervals = extract_intervals(marker_events, ["Image_Training_Door2_Start", "TID2S", "Training_Imagery_Door2_Start"], ["Image_Training_Door2_End", "TID2E", "Training_Imagery_Door2_End"])
-    imagery_c2_intervals = class2_intervals
+        imagery_c0 = []
+        imagery_c1 = []
+        imagery_c2 = []
+        
+        current_trial_type = None  # can be "Door1", "Door2", "Door1Flicker"
+        active_start_ts = None
+        imagery_start_ts = None
+        
+        for ts, m_str in markers:
+            # Check active start
+            if any(label in m_str for label in ["Training_Active_Door1_Start", "TAD1S"]):
+                current_trial_type = "Door1"
+                active_start_ts = ts
+            elif any(label in m_str for label in ["Active_Training_Door2_Start", "TAD2S"]):
+                current_trial_type = "Door2"
+                active_start_ts = ts
+            elif any(label in m_str for label in ["Training_Active_Door1_Flicker_Start", "TF1S"]):
+                current_trial_type = "Door1Flicker"
+                active_start_ts = ts
+                
+            # Check active end
+            elif any(label in m_str for label in ["Training_Active_Door1_End", "TAD1E"]):
+                if active_start_ts is not None and current_trial_type == "Door1":
+                    active_c0.append((active_start_ts, ts))
+                active_start_ts = None
+            elif any(label in m_str for label in ["Active_Training_Door2_End", "TAD2E"]):
+                if active_start_ts is not None and current_trial_type == "Door2":
+                    active_c1.append((active_start_ts, ts))
+                active_start_ts = None
+            elif any(label in m_str for label in ["Training_Active_Door1_Flicker_End", "TF1E"]):
+                if active_start_ts is not None and current_trial_type == "Door1Flicker":
+                    active_c2.append((active_start_ts, ts))
+                active_start_ts = None
+                
+            # Check imagery start
+            elif any(label in m_str for label in ["Training_Imagery_Door1_Start", "TID1S"]):
+                imagery_start_ts = ts
+            elif any(label in m_str for label in ["Image_Training_Door2_Start", "TID2S", "Training_Imagery_Door2_Start"]):
+                imagery_start_ts = ts
+                
+            # Check imagery end
+            elif any(label in m_str for label in ["Training_Imagery_Door1_End", "TID1E"]):
+                if imagery_start_ts is not None:
+                    if current_trial_type == "Door1Flicker":
+                        imagery_c2.append((imagery_start_ts, ts))
+                    elif current_trial_type == "Door1":
+                        imagery_c0.append((imagery_start_ts, ts))
+                imagery_start_ts = None
+                current_trial_type = None
+            elif any(label in m_str for label in ["Image_Training_Door2_End", "TID2E", "Training_Imagery_Door2_End"]):
+                if imagery_start_ts is not None and current_trial_type == "Door2":
+                    imagery_c1.append((imagery_start_ts, ts))
+                imagery_start_ts = None
+                current_trial_type = None
+                
+        return active_c0, active_c1, active_c2, imagery_c0, imagery_c1, imagery_c2
+
+    class0_intervals, class1_intervals, class2_intervals, imagery_c0_intervals, imagery_c1_intervals, imagery_c2_intervals = extract_sequential_intervals(marker_events)
     
     print("\n--- Interval extraction summary ---")
     print(f"Class 0 (Door 1 Active) intervals: {len(class0_intervals)}")
@@ -217,9 +260,41 @@ def run_validation(xdf_file, speed=10.0, output_prefix="s4", selected_channels=N
     print(f"Imagery Class 1 (Door 2 Imagery) intervals: {len(imagery_c1_intervals)}")
     print(f"Imagery Class 2 (Door 1 Flicker) intervals: {len(imagery_c2_intervals)}")
     
+    # 2.5. Extract eye closed intervals from markers (to handle eye blinks)
+    def extract_eye_closed_intervals(markers):
+        eye_closed_intervals = []
+        eye_closed_start = None
+        
+        for ts, m_str in markers:
+            parts = m_str.split(",")
+            if len(parts) >= 6:
+                action = parts[5].strip()
+            else:
+                action = m_str.strip()
+                
+            if action == "Eye_Closed":
+                if eye_closed_start is None:
+                    eye_closed_start = ts
+            elif action == "Eye_Opened":
+                if eye_closed_start is not None:
+                    eye_closed_intervals.append((eye_closed_start, ts))
+                    eye_closed_start = None
+                    
+        if eye_closed_start is not None and len(eeg_timestamps_arr) > 0:
+            eye_closed_intervals.append((eye_closed_start, eeg_timestamps_arr[-1]))
+            
+        return eye_closed_intervals
+
+    eye_closed_intervals = extract_eye_closed_intervals(marker_events)
+    if len(eye_closed_intervals) > 0:
+        print(f"\nCaptured {len(eye_closed_intervals)} eye closed intervals:")
+        for idx, (start, end) in enumerate(eye_closed_intervals):
+            print(f"  Interval {idx}: {start:.2f}s to {end:.2f}s (duration: {end-start:.2f}s)")
+            
     # 3. Sliding window epoch extractor
-    def extract_epochs(eeg, timestamps, intervals, sfreq, epoch_duration=1.0, step_size=0.2, latency_shift_s=0.5):
+    def extract_epochs(eeg, timestamps, intervals, sfreq, eye_closed_intervals, epoch_duration=1.0, step_size=0.2, latency_shift_s=0.5):
         epochs = []
+        eye_closed_flags = []
         n_samples = int(epoch_duration * sfreq)
         for t_start, t_end in intervals:
             t = t_start + latency_shift_s
@@ -228,24 +303,28 @@ def run_validation(xdf_file, speed=10.0, output_prefix="s4", selected_channels=N
                 if idx + n_samples <= len(timestamps):
                     epoch = eeg[idx : idx + n_samples, :].T
                     epochs.append(epoch.copy())
+                    # Check if eye is closed at the processing time (end of epoch) to replicate online backend
+                    t_end_epoch = t + epoch_duration
+                    is_closed = any(start <= t_end_epoch <= end for start, end in eye_closed_intervals)
+                    eye_closed_flags.append(is_closed)
                 t += step_size
-        return epochs
+        return epochs, eye_closed_flags
         
     sfreq = recorder.sfreq if recorder.sfreq else 125.0
     
-    raw_epochs_c0 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, class0_intervals, sfreq)
-    norm_epochs_c0 = extract_epochs(eeg_data_norm, eeg_timestamps_arr, class0_intervals, sfreq)
+    raw_epochs_c0, eye_closed_c0 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, class0_intervals, sfreq, eye_closed_intervals)
+    norm_epochs_c0, _ = extract_epochs(eeg_data_norm, eeg_timestamps_arr, class0_intervals, sfreq, eye_closed_intervals)
     
-    raw_epochs_c1 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, class1_intervals, sfreq)
-    norm_epochs_c1 = extract_epochs(eeg_data_norm, eeg_timestamps_arr, class1_intervals, sfreq)
+    raw_epochs_c1, eye_closed_c1 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, class1_intervals, sfreq, eye_closed_intervals)
+    norm_epochs_c1, _ = extract_epochs(eeg_data_norm, eeg_timestamps_arr, class1_intervals, sfreq, eye_closed_intervals)
     
-    raw_epochs_c2 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, class2_intervals, sfreq)
-    norm_epochs_c2 = extract_epochs(eeg_data_norm, eeg_timestamps_arr, class2_intervals, sfreq)
+    raw_epochs_c2, eye_closed_c2 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, class2_intervals, sfreq, eye_closed_intervals)
+    norm_epochs_c2, _ = extract_epochs(eeg_data_norm, eeg_timestamps_arr, class2_intervals, sfreq, eye_closed_intervals)
     
     # Extract Imagery epochs (raw EEG only)
-    imagery_raw_epochs_c0 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, imagery_c0_intervals, sfreq)
-    imagery_raw_epochs_c1 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, imagery_c1_intervals, sfreq)
-    imagery_raw_epochs_c2 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, imagery_c2_intervals, sfreq)
+    imagery_raw_epochs_c0, imagery_eye_closed_c0 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, imagery_c0_intervals, sfreq, eye_closed_intervals)
+    imagery_raw_epochs_c1, imagery_eye_closed_c1 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, imagery_c1_intervals, sfreq, eye_closed_intervals)
+    imagery_raw_epochs_c2, imagery_eye_closed_c2 = extract_epochs(eeg_data_arr, eeg_timestamps_arr, imagery_c2_intervals, sfreq, eye_closed_intervals)
     
     print(f"\nExtracted initial epochs:")
     print(f"  Class 0 (Door 1 Active): {len(raw_epochs_c0)} epochs")
@@ -262,27 +341,27 @@ def run_validation(xdf_file, speed=10.0, output_prefix="s4", selected_channels=N
     reassigned_count = 0
     
     # Process Active Class 0
-    for raw_ep, norm_ep in zip(raw_epochs_c0, norm_epochs_c0):
-        prep_raw = preprocess_global(raw_ep, sfreq, current_state="TRAIN_ACTIVE_OBJ1")
-        prep_norm = preprocess_global(norm_ep, sfreq, current_state="TRAIN_ACTIVE_OBJ1")
+    for raw_ep, norm_ep, is_closed in zip(raw_epochs_c0, norm_epochs_c0, eye_closed_c0):
+        prep_raw = preprocess_global(raw_ep, sfreq, is_eye_closed=is_closed, current_state="TRAIN_ACTIVE_OBJ1")
+        prep_norm = preprocess_global(norm_ep, sfreq, is_eye_closed=is_closed, current_state="TRAIN_ACTIVE_OBJ1")
         if prep_raw is not None and prep_norm is not None:
             X_raw_final.append(prep_raw)
             X_norm_final.append(prep_norm)
             y_final.append(0)
             
     # Process Active Class 1
-    for raw_ep, norm_ep in zip(raw_epochs_c1, norm_epochs_c1):
-        prep_raw = preprocess_global(raw_ep, sfreq, current_state="TRAIN_ACTIVE_OBJ2")
-        prep_norm = preprocess_global(norm_ep, sfreq, current_state="TRAIN_ACTIVE_OBJ2")
+    for raw_ep, norm_ep, is_closed in zip(raw_epochs_c1, norm_epochs_c1, eye_closed_c1):
+        prep_raw = preprocess_global(raw_ep, sfreq, is_eye_closed=is_closed, current_state="TRAIN_ACTIVE_OBJ2")
+        prep_norm = preprocess_global(norm_ep, sfreq, is_eye_closed=is_closed, current_state="TRAIN_ACTIVE_OBJ2")
         if prep_raw is not None and prep_norm is not None:
             X_raw_final.append(prep_raw)
             X_norm_final.append(prep_norm)
             y_final.append(1)
             
     # Process Active Class 2
-    for raw_ep, norm_ep in zip(raw_epochs_c2, norm_epochs_c2):
-        prep_raw = preprocess_global(raw_ep, sfreq, current_state="TRAIN_ACTIVE_OBJ1")
-        prep_norm = preprocess_global(norm_ep, sfreq, current_state="TRAIN_ACTIVE_OBJ1")
+    for raw_ep, norm_ep, is_closed in zip(raw_epochs_c2, norm_epochs_c2, eye_closed_c2):
+        prep_raw = preprocess_global(raw_ep, sfreq, is_eye_closed=is_closed, current_state="TRAIN_ACTIVE_OBJ1")
+        prep_norm = preprocess_global(norm_ep, sfreq, is_eye_closed=is_closed, current_state="TRAIN_ACTIVE_OBJ1")
         if prep_raw is not None and prep_norm is not None:
             X_raw_final.append(prep_raw)
             X_norm_final.append(prep_norm)
@@ -299,22 +378,22 @@ def run_validation(xdf_file, speed=10.0, output_prefix="s4", selected_channels=N
     y_imagery = []
     
     # Process Imagery Class 0
-    for raw_ep in imagery_raw_epochs_c0:
-        prep_raw = preprocess_global(raw_ep, sfreq, current_state="TRAIN_IMAGERY_OBJ1")
+    for raw_ep, is_closed in zip(imagery_raw_epochs_c0, imagery_eye_closed_c0):
+        prep_raw = preprocess_global(raw_ep, sfreq, is_eye_closed=is_closed, current_state="TRAIN_IMAGERY_OBJ1")
         if prep_raw is not None:
             X_imagery_raw.append(prep_raw)
             y_imagery.append(0)
             
     # Process Imagery Class 1
-    for raw_ep in imagery_raw_epochs_c1:
-        prep_raw = preprocess_global(raw_ep, sfreq, current_state="TRAIN_IMAGERY_OBJ2")
+    for raw_ep, is_closed in zip(imagery_raw_epochs_c1, imagery_eye_closed_c1):
+        prep_raw = preprocess_global(raw_ep, sfreq, is_eye_closed=is_closed, current_state="TRAIN_IMAGERY_OBJ2")
         if prep_raw is not None:
             X_imagery_raw.append(prep_raw)
             y_imagery.append(1)
             
     # Process Imagery Class 2 (Door 1 Flicker)
-    for raw_ep in imagery_raw_epochs_c2:
-        prep_raw = preprocess_global(raw_ep, sfreq, current_state="TRAIN_ACTIVE_OBJ1")
+    for raw_ep, is_closed in zip(imagery_raw_epochs_c2, imagery_eye_closed_c2):
+        prep_raw = preprocess_global(raw_ep, sfreq, is_eye_closed=is_closed, current_state="TRAIN_ACTIVE_OBJ1")
         if prep_raw is not None:
             X_imagery_raw.append(prep_raw)
             y_imagery.append(2)
