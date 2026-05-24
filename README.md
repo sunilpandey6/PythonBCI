@@ -380,6 +380,8 @@ The backend is built for zero-blocking real-time processing using three daemon t
 | **mne** | ≥ 1.0 | EEG data utilities (CSP Vectorizer used by prediction pipeline) |
 | **scikit-learn** | ≥ 1.2 | SVM classifiers and preprocessing |
 
+pip install -r requirements.txt
+
 ### Environment Setup
 
 ```bash

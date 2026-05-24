@@ -1,0 +1,18 @@
+# Core numerical and scientific computing
+numpy
+scipy
+
+# Machine learning and preprocessing
+scikit-learn
+mne
+
+# Lab Streaming Layer (LSL) communication
+pylsl
+
+# XDF file loading and processing
+pyxdf
+pandas
+
+# Data visualization (for offline confusion matrices and validation plots)
+matplotlib
+seaborn
