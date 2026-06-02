@@ -1,0 +1,195 @@
+Time,Experiment,Phase,Event,Detail,Action
+16:31:26.638,TrainML,MLTrain,LSL_Connected,BCIBackend,BCI_Stream_Open
+16:31:26.640,TrainML,MLTrain,Experiment_Start,TrainML,
+16:31:26.640,TrainML,MLTrain,Phase_Start,MLTrain,
+16:32:01.946,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:02.035,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:02.180,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:02.347,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:02.368,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:02.424,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:02.490,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:02.624,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:03.876,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:04.008,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:04.324,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:04.478,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:05.268,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:05.289,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:05.745,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:05.757,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:06.289,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:06.377,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:07.644,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:07.855,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:08.024,TrainML,MLTrain,Hover_Enter,Button: StartTestBCI,Hovering
+16:32:08.024,TrainML,MLTrain,Dwell_Start,Button: StartTestBCI,Dwell_Started
+16:32:08.034,TrainML,MLTrain,Hover_Exit,Button: StartTestBCI,Hover_Exit
+16:32:08.355,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:08.453,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:09.309,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:09.410,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:10.887,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:11.020,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:11.552,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:11.652,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:13.141,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:13.385,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:14.374,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:14.583,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:15.151,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:15.273,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:21.715,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:21.938,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:32.320,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:32.421,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:39.693,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:39.883,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:44.013,TrainML,MLTrain,Hover_Enter,Button: StartTestBCI,Hovering
+16:32:44.081,TrainML,MLTrain,Hover_Exit,Button: StartTestBCI,Hover_Exit
+16:32:44.235,TrainML,MLTrain,Hover_Enter,Button: StartTestBCI,Hovering
+16:32:44.259,TrainML,MLTrain,Hover_Exit,Button: StartTestBCI,Hover_Exit
+16:32:44.280,TrainML,MLTrain,Hover_Enter,Button: StartTestBCI,Hovering
+16:32:44.336,TrainML,MLTrain,Hover_Exit,Button: StartTestBCI,Hover_Exit
+16:32:47.180,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:47.323,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:59.122,TrainML,MLTrain,Hover_Enter,Button: StartTestBCI,Hovering
+16:32:59.133,TrainML,MLTrain,Hover_Enter,Button: StartTestBCI,Hovering
+16:32:59.175,TrainML,MLTrain,Hover_Exit,Button: StartTestBCI,Hover_Exit
+16:32:59.202,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:32:59.422,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:32:59.434,TrainML,MLTrain,Hover_Enter,Button: StartTestBCI,Hovering
+16:32:59.446,TrainML,MLTrain,Hover_Exit,Button: StartTestBCI,Hover_Exit
+16:32:59.457,TrainML,MLTrain,Hover_Enter,Button: StartTestBCI,Hovering
+16:32:59.479,TrainML,MLTrain,Hover_Exit,Button: StartTestBCI,Hover_Exit
+16:32:59.492,TrainML,MLTrain,Hover_Enter,Button: StartTestBCI,Hovering
+16:33:01.481,TrainML,MLTrain,Dwell,Button: StartTestBCI,Dwelling_Completed
+16:33:01.481,TrainML,MLTrain,Flicker,StartTestBCI,Flicker_Start
+16:33:03.482,TrainML,MLTrain,Flicker,StartTestBCI,Flicker_End
+16:33:03.482,TrainML,MLTrain,Action_Executed,Button: StartTestBCI; Action: ButtonAction,Execution_Proceeding
+16:33:03.486,TrainML,MLTrain,MLtest_Start,MLtest,Trial_Sequence_Start
+16:33:05.492,TrainML,MLTrain,Active_Training_Door2_Start,Door_Double,Active_Training_Door2_Start
+16:33:05.625,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:33:05.703,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:33:09.501,TrainML,MLTrain,Active_Training_Door2_End,Door_Double,Active_Training_Door2_End
+16:33:09.501,TrainML,MLTrain,Training_Imagery_Door2_Start,Door_Double,Training_Imagery_Door2_Start
+16:33:10.799,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:33:10.966,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:33:13.509,TrainML,MLTrain,Training_Imagery_Door2_End,Door_Double,Training_Imagery_Door2_End
+16:33:17.530,TrainML,MLTrain,Training_Active_Door1_Start,Door_Single,Training_Active_Door1_Start
+16:33:17.651,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:33:17.705,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:33:21.538,TrainML,MLTrain,Training_Active_Door1_End,Door_Single,Training_Active_Door1_End
+16:33:21.538,TrainML,MLTrain,Training_Imagery_Door1_Start,Door_Single,Training_Imagery_Door1_Start
+16:33:25.548,TrainML,MLTrain,Training_Imagery_Door1_End,Door_Single,Training_Imagery_Door1_End
+16:33:27.635,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:33:27.714,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:33:27.814,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:33:27.834,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:33:27.846,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:33:27.880,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:33:27.903,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:33:28.080,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:33:29.568,TrainML,MLTrain,Training_Active_Door1_Flicker_Start,Door_Single,Training_Active_Door1_Flicker_Start
+16:33:33.577,TrainML,MLTrain,Training_Active_Door1_Flicker_End,Door_Single,Training_Active_Door1_Flicker_End
+16:33:33.577,TrainML,MLTrain,Training_Imagery_Door1_Start,Door_Single,Training_Imagery_Door1_Flicker_Start
+16:33:34.443,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:33:34.577,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:33:37.587,TrainML,MLTrain,Training_Imagery_Door1_End,Door_Single,Training_Imagery_Door1_Flicker_End
+16:33:41.606,TrainML,MLTrain,Training_Active_Door1_Start,Door_Single,Training_Active_Door1_Start
+16:33:45.616,TrainML,MLTrain,Training_Active_Door1_End,Door_Single,Training_Active_Door1_End
+16:33:45.616,TrainML,MLTrain,Training_Imagery_Door1_Start,Door_Single,Training_Imagery_Door1_Start
+16:33:49.624,TrainML,MLTrain,Training_Imagery_Door1_End,Door_Single,Training_Imagery_Door1_End
+16:33:53.644,TrainML,MLTrain,Active_Training_Door2_Start,Door_Double,Active_Training_Door2_Start
+16:33:57.653,TrainML,MLTrain,Active_Training_Door2_End,Door_Double,Active_Training_Door2_End
+16:33:57.653,TrainML,MLTrain,Training_Imagery_Door2_Start,Door_Double,Training_Imagery_Door2_Start
+16:33:58.975,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:33:59.175,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:34:01.662,TrainML,MLTrain,Training_Imagery_Door2_End,Door_Double,Training_Imagery_Door2_End
+16:34:05.683,TrainML,MLTrain,Training_Active_Door1_Flicker_Start,Door_Single,Training_Active_Door1_Flicker_Start
+16:34:09.691,TrainML,MLTrain,Training_Active_Door1_Flicker_End,Door_Single,Training_Active_Door1_Flicker_End
+16:34:09.691,TrainML,MLTrain,Training_Imagery_Door1_Start,Door_Single,Training_Imagery_Door1_Flicker_Start
+16:34:13.702,TrainML,MLTrain,Training_Imagery_Door1_End,Door_Single,Training_Imagery_Door1_Flicker_End
+16:34:15.711,TrainML,MLTrain,MLtest_End,MLtest,Trial_Sequence_End
+16:34:15.711,TrainML,MLTrain,Test_Trial_Start,TestScene,log test trail
+16:34:17.722,TrainML,MLTrain,Active_Predict_Start,TestScene,Active_Predict_1_Start
+16:34:21.729,TrainML,MLTrain,Active_Predict_End,TestScene,Active_Predict_1_End
+16:34:21.729,TrainML,MLTrain,Predict_Imagery_Start,TestScene,Imagery_Predict_1_Start
+16:34:22.163,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:34:22.419,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:34:25.741,TrainML,MLTrain,Predict_Imagery_End,TestScene,Imagery_Predict_1_End
+16:34:27.749,TrainML,MLTrain,Test_Trial_End,TestScene,end test trail
+16:34:27.749,TrainML,MLTrain,Test_Trial_Start,TestScene,log test trail
+16:34:29.759,TrainML,MLTrain,Active_Predict_Start,TestScene,Active_Predict_2_Start
+16:34:33.768,TrainML,MLTrain,Active_Predict_End,TestScene,Active_Predict_2_End
+16:34:33.768,TrainML,MLTrain,Predict_Imagery_Start,TestScene,Imagery_Predict_2_Start
+16:34:37.778,TrainML,MLTrain,Predict_Imagery_End,TestScene,Imagery_Predict_2_End
+16:34:39.789,TrainML,MLTrain,Test_Trial_End,TestScene,end test trail
+16:34:45.990,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:34:46.295,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:03.286,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:03.308,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:03.342,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:03.353,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:04.719,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:04.753,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:04.785,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:05.040,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:05.751,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:05.841,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:06.852,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:06.874,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:06.906,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:06.951,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:07.218,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:07.396,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:07.451,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:07.472,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:10.972,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:11.016,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:11.105,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:11.282,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:20.733,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:20.755,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:21.455,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:21.469,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:21.482,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:21.501,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:25.165,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:25.186,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:56.503,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:56.614,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:56.670,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:56.693,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:35:57.236,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:35:57.302,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:36:03.877,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:36:04.109,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:36:07.142,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:36:07.209,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:36:11.951,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:36:11.973,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:36:14.204,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:36:14.337,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:36:23.399,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:36:23.445,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:36:25.234,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:36:25.299,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:36:37.506,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:36:37.548,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:36:40.313,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:36:40.447,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:36:44.455,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:36:44.490,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:36:51.064,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:36:51.087,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:36:52.075,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:36:52.129,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:37:08.833,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:37:08.987,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:37:23.648,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:37:23.670,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:37:23.747,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:37:23.813,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened
+16:37:24.468,TrainML,MLTrain,Eye_Closed,eye_tracking,Eye_Closed
+16:37:24.513,TrainML,MLTrain,Eye_Opened,eye_tracking,Eye_Opened

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class ImageryClassifier:
     """CSP + LDA classifier for motor imagery (Door 1 vs Door 2)."""
 
-    def __init__(self, sfreq: float = 250.0, n_channels: int = 16, class_labels: Tuple[int, int] = (0, 1)) -> None:
+    def __init__(self, sfreq: float = 125.0, n_channels: int = 16, class_labels: Tuple[int, int] = (0, 1)) -> None:
         self.sfreq = float(sfreq)
         self.n_channels = int(n_channels)
         self.class_labels = class_labels
@@ -53,7 +53,7 @@ class ImageryClassifier:
 class ActiveClassifier:
     """Vectorizer + StandardScaler + SVM classifier for active attention (Door 1 vs Door 2)."""
 
-    def __init__(self, sfreq: float = 250.0, n_channels: int = 16, class_labels: Tuple[int, int] = (0, 1)) -> None:
+    def __init__(self, sfreq: float = 125.0, n_channels: int = 16, class_labels: Tuple[int, int] = (0, 1)) -> None:
         self.sfreq = float(sfreq)
         self.n_channels = int(n_channels)
         self.class_labels = class_labels
@@ -94,7 +94,7 @@ class ActiveClassifier:
 class MixedClassifier:
     """Vectorizer + StandardScaler + SVM classifier trained on combined active + imagery data."""
 
-    def __init__(self, sfreq: float = 250.0, n_channels: int = 16, class_labels: Tuple[int, int] = (0, 1)) -> None:
+    def __init__(self, sfreq: float = 125.0, n_channels: int = 16, class_labels: Tuple[int, int] = (0, 1)) -> None:
         self.sfreq = float(sfreq)
         self.n_channels = int(n_channels)
         self.class_labels = class_labels

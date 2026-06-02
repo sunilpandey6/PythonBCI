@@ -36,10 +36,10 @@ class SSVEPDetector:
     def __init__(
         self,
         target_freq: float,
-        sfreq: float = 250.0,
+        sfreq: float = 125.0,
         n_harmonics: int = 3,
         occipital_channels: List[int] | None = None,
-        detection_threshold: float = 0.4,
+        detection_threshold: float = 0.5,
         filter_order: int = 4,
         fbcca_num_bands: int = 5,
         fbcca_a: float = 1.25,
@@ -103,7 +103,6 @@ class SSVEPDetector:
                 rho = 0.0
             w = (n ** -self.fbcca_a) + self.fbcca_b
             fbcca_score += w * rho
-
         return float(np.clip(fbcca_score, 0.0, 1.0))
 
     def _build_reference(self, n_samples: int) -> np.ndarray:
@@ -133,16 +132,43 @@ class SSVEPDetector:
 
     def _design_fbcca_filters(self) -> List[np.ndarray]:
         sos_list = []
+
         nyq = self.sfreq / 2.0
-        high = min(90.0 / nyq, 0.999)
-        for i in range(1, self.fbcca_num_bands + 1):
-            low = (i * self.fbcca_band_width) / nyq
-            if low >= high:
+        start = 6.0
+
+        for i in range(self.fbcca_num_bands):
+
+            low = start + i * self.fbcca_band_width
+            high = low + self.fbcca_band_width
+
+            # keep safely below Nyquist
+            if high >= nyq:
+                high = nyq - 0.5
+
+            # skip invalid bands
+            if low >= high or low <= 0:
                 logger.warning(
-                    "FBCCA sub-band %d low cutoff (%.1f Hz) exceeds high (%.1f Hz). Using fallback.",
-                    i, low * nyq, high * nyq,
+                    "Skipping invalid FBCCA band: low=%.2f high=%.2f",
+                    low,
+                    high,
                 )
-                low = max(1e-4, high - 0.01)
-            sos = sp_signal.butter(self.filter_order, [low, high], btype="bandpass", output="sos")
+                continue
+
+            sos = sp_signal.butter(
+                self.filter_order,
+                [low, high],
+                btype="bandpass",
+                fs=self.sfreq,
+                output="sos",
+            )
+
             sos_list.append(sos)
+
+            logger.info(
+                "FBCCA band %d: %.1f-%.1f Hz",
+                i + 1,
+                low,
+                high,
+            )
+
         return sos_list

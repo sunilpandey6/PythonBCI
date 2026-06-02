@@ -3,14 +3,14 @@ import numpy as np
 from scipy import signal
 
 STATE_BANDPASS_MAP = {
-    "SSVEP_TEST": (1.0, 60.0),
+    "SSVEP_TEST": (3.0, 60.0),
     "TRAIN_ACTIVE_OBJ1": (3.0, 60.0),
     "TRAIN_ACTIVE_OBJ2": (3.0, 60.0),
     "PREDICT_ACTIVE": (3.0, 60.0),
-    "TRAIN_IMAGERY_OBJ1": (1.0, 100.0),
-    "TRAIN_IMAGERY_OBJ2": (1.0, 100.0),
-    "PREDICT_IMAGERY": (1.0, 100.0),
-    "PREDICT_MIXED": (1.0, 100.0),
+    "TRAIN_IMAGERY_OBJ1": (3.0, 90.0),
+    "TRAIN_IMAGERY_OBJ2": (3.0, 90.0),
+    "PREDICT_IMAGERY": (3.0, 90.0),
+    "PREDICT_MIXED": (3.0, 90.0),
 }
 
 def preprocess_global(
@@ -27,9 +27,6 @@ def preprocess_global(
     if 50.0 < nyq:
         b50, a50 = signal.iirnotch(50.0 / nyq, 30.0)
         epoch_filt = signal.filtfilt(b50, a50, epoch_filt, axis=-1)
-    if 100.0 < nyq:
-        b100, a100 = signal.iirnotch(100.0 / nyq, 30.0)
-        epoch_filt = signal.filtfilt(b100, a100, epoch_filt, axis=-1)
     
     low_cut, high_cut = STATE_BANDPASS_MAP.get(current_state, (1.0, 90.0))
     low = max(0.1, low_cut)
