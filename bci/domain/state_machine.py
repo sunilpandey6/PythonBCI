@@ -25,7 +25,7 @@ TRANSITIONS = {
     "TAD2E": BCIState.IDLE,
     "TID2S": BCIState.TRAIN_IMAGERY_OBJ2,
     "TID2E": BCIState.IDLE,
-    "Predict_Start_Active": BCIState.PREDICT_ACTIVE,
+    "Predict_Active_Start": BCIState.PREDICT_ACTIVE,
     "Predict_Start_Imagery": BCIState.PREDICT_IMAGERY,
     "Start_predict": BCIState.PREDICT_MIXED,
     "Predict_End": BCIState.IDLE,

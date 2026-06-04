@@ -61,7 +61,7 @@ class BCIBackend:
             sfreq=self.sfreq,
             detection_threshold=self.detection_threshold,
         )
-        self.active_model = ActiveClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
+        self.active_model = ImageryClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
         self.imagery_model = ImageryClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
         self.mixed_model = MixedClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
 
