@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-DEFAULT_SFREQ: float = 250.0
+DEFAULT_SFREQ: float = 125.0
 
 @dataclass
 class BCIConfig:

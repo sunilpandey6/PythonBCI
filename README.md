@@ -81,7 +81,7 @@ PythonBCI/
 @dataclass
 class BCIConfig:
     target_freq: float = 15.0              # SSVEP stimulus frequency (Hz)
-    sfreq: float = 250.0                   # EEG sampling rate (Hz)
+    sfreq: float = 125.0                   # EEG sampling rate (Hz)
     epoch_duration: float = 1.0            # Sliding window length (s)
     n_train_epochs: int = 30               # Ring buffer size per class
     detection_threshold: float = 0.4       # Min FBCCA score for FLICKER_DETECTED
