@@ -41,7 +41,7 @@ class SSVEPDetector:
         occipital_channels: List[int] | None = None,
         detection_threshold: float = 0.5,
         filter_order: int = 4,
-        fbcca_num_bands: int = 5,
+        fbcca_num_bands: int = 3,
         fbcca_a: float = 1.25,
         fbcca_b: float = 0.25,
         fbcca_band_width: float = 8.0,

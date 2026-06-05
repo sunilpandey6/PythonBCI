@@ -1,0 +1,125 @@
+Time,Experiment,Phase,Event,Detail,Action
+17:15:55.548,BCI,Test3D,LSL_Connected,BCIBackend,BCI_Stream_Open
+17:15:55.570,BCI,Test3D,Experiment_Start,BCI,
+17:15:55.570,BCI,TrainBCI,Phase_Start,TrainBCI,
+17:15:55.602,BCI,TrainBCI,Hover_Enter,Button: StartTrainBCI,Hovering
+17:15:55.604,BCI,TrainBCI,Dwell_Start,Button: StartTrainBCI,Dwell_Started
+17:15:56.785,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:15:56.863,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:15:57.680,BCI,TrainBCI,Hover_Exit,Button: StartTrainBCI,Hover_Exit
+17:15:57.802,BCI,TrainBCI,Hover_Enter,Button: StartTrainBCI,Hovering
+17:15:57.870,BCI,TrainBCI,Hover_Exit,Button: StartTrainBCI,Hover_Exit
+17:15:57.880,BCI,TrainBCI,Hover_Enter,Button: StartTrainBCI,Hovering
+17:15:58.168,BCI,TrainBCI,Hover_Exit,Button: StartTrainBCI,Hover_Exit
+17:15:59.103,BCI,TrainBCI,Hover_Enter,Button: StartTrainBCI,Hovering
+17:15:59.422,BCI,TrainBCI,Hover_Exit,Button: StartTrainBCI,Hover_Exit
+17:15:59.436,BCI,TrainBCI,Hover_Enter,Button: StartTrainBCI,Hovering
+17:15:59.480,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:15:59.602,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:16:01.112,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:16:01.234,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:16:01.434,BCI,TrainBCI,Dwell,Button: StartTrainBCI,Dwelling_Completed
+17:16:01.434,BCI,TrainBCI,Action_Executed,Button: StartTrainBCI; Action: ButtonAction,Execution_Proceeding
+17:16:01.944,BCI,TrainBCI,Training_Active_Door1_Start,Door_Single,TAD1S
+17:16:05.953,BCI,TrainBCI,Training_Active_Door1_End,Door_Single,TAD1E
+17:16:06.532,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:16:06.698,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:16:06.976,BCI,TrainBCI,Training_Active_Door1_Start,Door_Single,TAD1S
+17:16:10.984,BCI,TrainBCI,Training_Active_Door1_End,Door_Single,TAD1E
+17:16:11.947,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:16:12.001,BCI,TrainBCI,Active_Training_Door2_Start,Door_Double,TAD2S
+17:16:12.046,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:16:16.004,BCI,TrainBCI,Active_Training_Door2_End,Door_Double,TAD2E
+17:16:17.014,BCI,TrainBCI,Training_Active_Door1_Start,Door_Single,TAD1S
+17:16:21.024,BCI,TrainBCI,Training_Active_Door1_End,Door_Single,TAD1E
+17:16:22.046,BCI,TrainBCI,Active_Training_Door2_Start,Door_Double,TAD2S
+17:16:26.054,BCI,TrainBCI,Active_Training_Door2_End,Door_Double,TAD2E
+17:16:26.364,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:16:26.666,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:16:27.066,BCI,TrainBCI,Training_Active_Door1_Start,Door_Single,TAD1S
+17:16:31.074,BCI,TrainBCI,Training_Active_Door1_End,Door_Single,TAD1E
+17:16:31.361,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:16:31.739,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:16:32.084,BCI,TrainBCI,Training_Active_Door1_Start,Door_Single,TAD1S
+17:16:36.093,BCI,TrainBCI,Training_Active_Door1_End,Door_Single,TAD1E
+17:16:36.736,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:16:36.905,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:16:37.115,BCI,TrainBCI,Active_Training_Door2_Start,Door_Double,TAD2S
+17:16:41.125,BCI,TrainBCI,Active_Training_Door2_End,Door_Double,TAD2E
+17:16:41.934,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:16:42.091,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:16:42.146,BCI,TrainBCI,Training_Active_Door1_Start,Door_Single,TAD1S
+17:16:46.156,BCI,TrainBCI,Training_Active_Door1_End,Door_Single,TAD1E
+17:16:46.798,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:16:46.943,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:16:47.175,BCI,TrainBCI,Active_Training_Door2_Start,Door_Double,TAD2S
+17:16:51.185,BCI,TrainBCI,Active_Training_Door2_End,Door_Double,TAD2E
+17:16:51.818,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:16:51.974,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:16:52.200,BCI,TrainBCI,Active_Training_Door2_Start,Door_Double,TAD2S
+17:16:56.205,BCI,TrainBCI,Active_Training_Door2_End,Door_Double,TAD2E
+17:16:57.172,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:16:57.228,BCI,TrainBCI,Training_Active_Door1_Start,Door_Single,TAD1S
+17:16:57.381,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:17:01.235,BCI,TrainBCI,Training_Active_Door1_End,Door_Single,TAD1E
+17:17:01.735,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:17:01.846,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:17:02.247,BCI,TrainBCI,Training_Active_Door1_Start,Door_Single,TAD1S
+17:17:06.255,BCI,TrainBCI,Training_Active_Door1_End,Door_Single,TAD1E
+17:17:06.799,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:17:06.899,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:17:07.277,BCI,TrainBCI,Active_Training_Door2_Start,Door_Double,TAD2S
+17:17:11.298,BCI,TrainBCI,Active_Training_Door2_End,Door_Double,TAD2E
+17:17:11.919,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:17:12.020,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:17:12.298,BCI,TrainBCI,Training_Active_Door1_Start,Door_Single,TAD1S
+17:17:16.306,BCI,TrainBCI,Training_Active_Door1_End,Door_Single,TAD1E
+17:17:17.327,BCI,TrainBCI,Training_Active_Door1_Start,Door_Single,TAD1S
+17:17:21.337,BCI,TrainBCI,Training_Active_Door1_End,Door_Single,TAD1E
+17:17:22.349,BCI,TrainBCI,Active_Training_Door2_Start,Door_Double,TAD2S
+17:17:25.890,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:17:26.056,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:17:26.355,BCI,TrainBCI,Active_Training_Door2_End,Door_Double,TAD2E
+17:17:27.378,BCI,TrainBCI,Active_Training_Door2_Start,Door_Double,TAD2S
+17:17:31.387,BCI,TrainBCI,Active_Training_Door2_End,Door_Double,TAD2E
+17:17:31.863,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:17:32.042,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:17:32.408,BCI,TrainBCI,Active_Training_Door2_Start,Door_Double,TAD2S
+17:17:36.417,BCI,TrainBCI,Active_Training_Door2_End,Door_Double,TAD2E
+17:17:37.440,BCI,TrainBCI,Active_Training_Door2_Start,Door_Double,TAD2S
+17:17:41.449,BCI,TrainBCI,Active_Training_Door2_End,Door_Double,TAD2E
+17:17:41.958,BCI,TrainBCI,Train_End,Training Complete,Train_End
+17:17:42.603,BCI,TrainBCI,Eye_Closed,eye_tracking,Eye_Closed
+17:17:42.825,BCI,TrainBCI,Eye_Opened,eye_tracking,Eye_Opened
+17:17:42.970,BCI,TrainBCI,Hover_Enter,Button: NextTrainBCI,Hovering
+17:17:42.970,BCI,TrainBCI,Dwell_Start,Button: NextTrainBCI,Dwell_Started
+17:17:42.981,BCI,TrainBCI,Hover_Exit,Button: NextTrainBCI,Hover_Exit
+17:17:42.992,BCI,TrainBCI,Hover_Enter,Button: NextTrainBCI,Hovering
+17:17:43.014,BCI,TrainBCI,Hover_Exit,Button: NextTrainBCI,Hover_Exit
+17:17:43.024,BCI,TrainBCI,Hover_Enter,Button: NextTrainBCI,Hovering
+17:17:43.070,BCI,TrainBCI,Hover_Exit,Button: NextTrainBCI,Hover_Exit
+17:17:43.159,BCI,TrainBCI,Hover_Enter,Button: NextTrainBCI,Hovering
+17:17:43.435,BCI,TrainBCI,Hover_Exit,Button: NextTrainBCI,Hover_Exit
+17:17:43.748,BCI,TrainBCI,Hover_Enter,Button: NextTrainBCI,Hovering
+17:17:45.747,BCI,TrainBCI,Dwell,Button: NextTrainBCI,Dwelling_Completed
+17:17:45.747,BCI,TrainBCI,Action_Executed,Button: NextTrainBCI; Action: ButtonAction,Execution_Proceeding
+17:17:45.747,BCI,Test3D,Phase_Start,Test3D,
+17:17:45.757,BCI,Test3D,Hover_Enter,Button: StartTestBCI,Hovering
+17:17:45.757,BCI,Test3D,Dwell_Start,Button: StartTestBCI,Dwell_Started
+17:17:46.087,BCI,Test3D,Hover_Exit,Button: StartTestBCI,Hover_Exit
+17:17:46.284,BCI,Test3D,Eye_Closed,eye_tracking,Eye_Closed
+17:17:46.319,BCI,Test3D,Eye_Opened,eye_tracking,Eye_Opened
+17:17:50.078,BCI,Test3D,Hover_Enter,Button: StartTestBCI,Hovering
+17:17:50.798,BCI,Test3D,Hover_Exit,Button: StartTestBCI,Hover_Exit
+17:17:52.487,BCI,Test3D,Hover_Enter,Button: StartTestBCI,Hovering
+17:17:54.486,BCI,Test3D,Dwell,Button: StartTestBCI,Dwelling_Completed
+17:17:54.486,BCI,Test3D,Action_Executed,Button: StartTestBCI; Action: ButtonAction,Execution_Proceeding
+17:17:54.489,BCI,Test3D,Predict_Start,Prediction_Phase,Predict_Active_Start
+17:17:59.471,BCI,Test3D,Eye_Closed,eye_tracking,Eye_Closed
+17:17:59.884,BCI,Test3D,Eye_Opened,eye_tracking,Eye_Opened
+17:18:10.367,BCI,Test3D,Eye_Closed,eye_tracking,Eye_Closed
+17:18:10.511,BCI,Test3D,Eye_Opened,eye_tracking,Eye_Opened
+17:18:33.044,BCI,Test3D,Eye_Closed,eye_tracking,Eye_Closed
+17:18:33.188,BCI,Test3D,Eye_Opened,eye_tracking,Eye_Opened
+17:18:33.989,BCI,Test3D,Eye_Closed,eye_tracking,Eye_Closed
+17:18:34.021,BCI,Test3D,Eye_Opened,eye_tracking,Eye_Opened

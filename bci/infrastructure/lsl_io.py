@@ -77,7 +77,18 @@ class LslManager:
           sample_list, _ts = self._marker_inlet.pull_sample(timeout=timeout)
           return sample_list
 
-      def push_sample(self, sample_list: List[str]) -> None:
-          if not LSL_AVAILABLE or self._output_outlet is None:
-              return
-          self._output_outlet.push_sample(sample_list)
+      def push_sample(self, sample_list):
+        if not LSL_AVAILABLE:
+            logger.error("LSL not available")
+            return
+
+        if self._output_outlet is None:
+            logger.error("Output outlet is None")
+            return
+
+        self._output_outlet.push_sample(sample_list)
+
+        logger.info(
+            "LSL PUSHED: %s",
+            sample_list[0]
+        )
