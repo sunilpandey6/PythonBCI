@@ -1,3 +1,4 @@
+from PythonBCI.bci.application import backend
 from __future__ import annotations
 
 import argparse
@@ -48,6 +49,34 @@ def main() -> None:
 
     backend = BCIBackend(config)
     backend.start()
+
+    try:
+        time.sleep(30)
+
+        logger.info("Sending test prediction")
+
+        backend._push_raw(
+            """
+            {
+                "Code":300,
+                "Event":"Predict_Active_Start",
+                "Detail":"Demo",
+                "Remark":{
+                    "Model":"ACTIVE",
+                    "Prediction":"OBJ1",
+                    "Confidence":0.95
+                }
+            }
+            """
+        )
+
+        while True:
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        logger.info("Ctrl-C received.")
+    finally:
+        backend.stop()
 
     if args.test_mode:
         logger.info("Test mode enabled - sending dummy LSL messages every 2 seconds.")
