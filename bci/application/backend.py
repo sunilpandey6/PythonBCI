@@ -210,87 +210,91 @@ class BCIBackend:
 
         logger.info("[Thread-Logic] stopped.")
 
-def _handle_marker_payload(self, payload: dict) -> None:
-    raw_action = payload["action"]
-    logger.info("[Logic] Action received: '%s'", raw_action)
+    def _handle_marker_payload(self, payload: dict) -> None:
+        raw_action = payload["action"]
+        logger.info("[Logic] Action received: '%s'", raw_action)
 
-    action = raw_action
-    param = None
+        action = raw_action
+        param = None
 
-    if ":" in raw_action:
-        action, param_str = raw_action.split(":", 1)
-        try:
-            param = float(param_str)
-        except ValueError:
-            param = None
-
-    # -------------------------
-    # 1. Eye control
-    # -------------------------
-    if action == "Eye_Closed":
-        self.is_eye_closed = True
-        logger.info("[Logic] Eye closed. Pausing processing.")
-        return
-
-    if action == "Eye_Opened":
-        self.is_eye_closed = False
-        logger.info("[Logic] Eye opened. Resuming processing.")
-        return
-
-    # -------------------------
-    # 2. Frequency control
-    # -------------------------
-    if "Set_Target_Frequency" in action:
-        match = re.search(r'[\d\.]+', action)
-        if match:
+        if ":" in raw_action:
+            action, param_str = raw_action.split(":", 1)
             try:
-                freq = float(match.group())
-                self.target_freq = freq
-                self._detector.target_freq = freq
-                logger.info("[Logic] Target frequency set to %.2f Hz", freq)
+                param = float(param_str)
             except ValueError:
-                self.target_freq = 15.0
-                self._detector.target_freq = 15.0
-        return
+                param = None
 
-    # -------------------------
-    # 3. Predict Start (SPECIAL CASE)
-    # -------------------------
-    if action == "Predict_Start":
-        if param is not None:
-            self._update_prediction_window(param)
-            logger.info("[Logic] Prediction window set to %.2f sec", param)
+        # -------------------------
+        # 1. Eye control
+        # -------------------------
+        if action == "Eye_Closed":
+            self.is_eye_closed = True
+            logger.info("[Logic] Eye closed. Pausing processing.")
+            return
 
-        new_state = self._state_machine.get_next_state(action)
-        if new_state:
-            self._set_state(new_state)
-        return
+        if action == "Eye_Opened":
+            self.is_eye_closed = False
+            logger.info("[Logic] Eye opened. Resuming processing.")
+            return
 
-    # -------------------------
-    # 4. Train End (SPECIAL CASE)
-    # -------------------------
-    if action == "Train_End":
-        self._attempt_training()
-        self._set_state(BCIState.IDLE)
-        return
+        # -------------------------
+        # 2. Frequency control
+        # -------------------------
+        if "Set_Target_Frequency" in action:
+            match = re.search(r'[\d\.]+', action)
+            if match:
+                try:
+                    freq = float(match.group())
+                    self.target_freq = freq
+                    self._detector.target_freq = freq
+                    logger.info("[Logic] Target frequency set to %.2f Hz", freq)
+                except ValueError:
+                    self.target_freq = 15.0
+                    self._detector.target_freq = 15.0
+            return
 
-    # -------------------------
-    # 5. Default state machine
-    # -------------------------
-    new_state = self._state_machine.get_next_state(action)
+        # -------------------------
+        # 3. Predict Start (SPECIAL CASE)
+        # -------------------------
+        if action == "Predict_Start":
+            if param is not None:
+                self._update_prediction_window(param)
+                logger.info("[Logic] Prediction window set to %.2f sec", param)
 
-    if new_state is not None:
-        if self._get_state() == BCIState.SSVEP_TEST and new_state == BCIState.IDLE:
-            self._finalize_flicker()
-        else:
             with self._unity_event_lock:
                 self._last_unity_event = payload["event"]
                 self._last_unity_detail = payload["detail"]
 
-        self._set_state(new_state)
-        return
+            new_state = self._state_machine.get_next_state(action)
+            if new_state:
+                self._set_state(new_state)
+            return
 
-    logger.debug("[Logic] Unrecognised action: '%s'", raw_action)
+        # -------------------------
+        # 4. Train End (SPECIAL CASE)
+        # -------------------------
+        if action == "Train_End":
+            self._attempt_training()
+            self._set_state(BCIState.IDLE)
+            return
+
+        # -------------------------
+        # 5. Default state machine
+        # -------------------------
+        new_state = self._state_machine.get_next_state(action)
+
+        if new_state is not None:
+            if self._get_state() == BCIState.SSVEP_TEST and new_state == BCIState.IDLE:
+                self._finalize_flicker()
+            else:
+                with self._unity_event_lock:
+                    self._last_unity_event = payload["event"]
+                    self._last_unity_detail = payload["detail"]
+
+            self._set_state(new_state)
+            return
+
+        logger.debug("[Logic] Unrecognised action: '%s'", raw_action)
 
     def _process_epoch(self, epoch: np.ndarray, state: str) -> None:
         processed = preprocess_global(epoch, self.sfreq, is_eye_closed=self.is_eye_closed, current_state=state)
@@ -368,8 +372,6 @@ def _handle_marker_payload(self, payload: dict) -> None:
     def _attempt_training(self) -> None:
         act_obj1 = self.active_obj1_epochs.get_all()
         act_obj2 = self.active_obj2_epochs.get_all()
-        img_obj1 = self.imagery_obj1_epochs.get_all()
-        img_obj2 = self.imagery_obj2_epochs.get_all()
 
         if len(act_obj1) >= self.n_train_epochs and len(act_obj2) >= self.n_train_epochs:
             X_a = act_obj1 + act_obj2
@@ -378,24 +380,6 @@ def _handle_marker_payload(self, payload: dict) -> None:
         else:
             logger.warning("[Logic] ACTIVE training skipped - insufficient epochs (OBJ1: %d, OBJ2: %d, need: %d).",
                            len(act_obj1), len(act_obj2), self.n_train_epochs)
-
-        if len(img_obj1) >= self.n_train_epochs and len(img_obj2) >= self.n_train_epochs:
-            X_i = img_obj1 + img_obj2
-            y_i = [0] * len(img_obj1) + [1] * len(img_obj2)
-            self.imagery_model.train(X_i, y_i)
-        else:
-            logger.warning("[Logic] IMAGERY training skipped - insufficient epochs (OBJ1: %d, OBJ2: %d, need: %d).",
-                           len(img_obj1), len(img_obj2), self.n_train_epochs)
-
-        X_m_obj1 = act_obj1 + img_obj1
-        X_m_obj2 = act_obj2 + img_obj2
-        if len(X_m_obj1) >= self.n_train_epochs and len(X_m_obj2) >= self.n_train_epochs:
-            X_m = X_m_obj1 + X_m_obj2
-            y_m = [0] * len(X_m_obj1) + [1] * len(X_m_obj2)
-            self.mixed_model.train(X_m, y_m)
-        else:
-            logger.warning("[Logic] MIXED training skipped - insufficient epochs (OBJ1: %d, OBJ2: %d, need: %d).",
-                           len(X_m_obj1), len(X_m_obj2), self.n_train_epochs)
 
     def _finalize_flicker(self) -> None:
         unity_event, unity_detail = self._read_unity_event()
@@ -436,11 +420,7 @@ def _handle_marker_payload(self, payload: dict) -> None:
         if new_state in (
             BCIState.TRAIN_ACTIVE_OBJ1,
             BCIState.TRAIN_ACTIVE_OBJ2,
-            BCIState.TRAIN_IMAGERY_OBJ1,
-            BCIState.TRAIN_IMAGERY_OBJ2,
-            BCIState.PREDICT_ACTIVE,
-            BCIState.PREDICT_IMAGERY,
-            BCIState.PREDICT_MIXED,
+            BCIState.PREDICT,
         ):
             with self._buffer_lock:
                 self._eeg_buffer.clear()
