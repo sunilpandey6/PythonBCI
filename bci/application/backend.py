@@ -68,7 +68,10 @@ class BCIBackend:
         self.active_obj2_epochs = EpochBuffer(max_epochs=self.n_train_epochs)
         self._flicker_results: List[FlickerResult] = []
         
-        predict_buffer_len = max(1, int(self.predict_accumulation_time / self.step_size))
+
+        self.current_prediction_window = self.predict_accumulation_time
+
+        predict_buffer_len = max(1, int(self.current_prediction_window / self.step_size))
         self._predict_accumulator = PredictionAccumulator(
             maxlen=predict_buffer_len,
             agreement_threshold=self.predict_agreement_threshold,
@@ -255,7 +258,7 @@ def _handle_marker_payload(self, payload: dict) -> None:
     # -------------------------
     if action == "Predict_Start":
         if param is not None:
-            self.current_prediction_window = param
+            self._update_prediction_window(param)
             logger.info("[Logic] Prediction window set to %.2f sec", param)
 
         new_state = self._state_machine.get_next_state(action)
@@ -321,6 +324,19 @@ def _handle_marker_payload(self, payload: dict) -> None:
                 self._accumulate_and_push(pred, conf, "ACTIVE", "None", 0.0, unity_event, unity_detail)
             else:
                 logger.warning("[Logic] ACTIVE model not trained.")
+
+    def _update_prediction_window(self, window: float) -> None:
+        self.current_prediction_window = window
+
+        new_len = max(1, int(window / self.step_size))
+
+        logger.info("[Logic] Prediction window updated → %.2f sec (%d samples)", window, new_len)
+
+        self._predict_accumulator = PredictionAccumulator(
+            maxlen=new_len,
+            agreement_threshold=self.predict_agreement_threshold,
+            confidence_threshold=self.predict_confidence_threshold
+        )
 
 
     def _accumulate_and_push(self, pred: int, conf: float, model_name: str, imagery_str: str, imagery_conf: float, unity_event: str, unity_detail: str) -> None:
