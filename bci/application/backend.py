@@ -62,13 +62,10 @@ class BCIBackend:
             detection_threshold=self.detection_threshold,
         )
         self.active_model = ImageryClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
-        self.imagery_model = ImageryClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
-        self.mixed_model = MixedClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
+       
 
         self.active_obj1_epochs = EpochBuffer(max_epochs=self.n_train_epochs)
         self.active_obj2_epochs = EpochBuffer(max_epochs=self.n_train_epochs)
-        self.imagery_obj1_epochs = EpochBuffer(max_epochs=self.n_train_epochs)
-        self.imagery_obj2_epochs = EpochBuffer(max_epochs=self.n_train_epochs)
         self._flicker_results: List[FlickerResult] = []
         
         predict_buffer_len = max(1, int(self.predict_accumulation_time / self.step_size))
@@ -191,11 +188,7 @@ class BCIBackend:
                 BCIState.SSVEP_TEST,
                 BCIState.TRAIN_ACTIVE_OBJ1,
                 BCIState.TRAIN_ACTIVE_OBJ2,
-                BCIState.TRAIN_IMAGERY_OBJ1,
-                BCIState.TRAIN_IMAGERY_OBJ2,
-                BCIState.PREDICT_ACTIVE,
-                BCIState.PREDICT_IMAGERY,
-                BCIState.PREDICT_MIXED,
+                BCIState.PREDICT,
             ):
                 if not self._eeg_ready.wait(timeout=1.0):
                     continue
@@ -214,56 +207,87 @@ class BCIBackend:
 
         logger.info("[Thread-Logic] stopped.")
 
-    def _handle_marker_payload(self, payload: dict) -> None:
-        action = payload["action"]
-        logger.info("[Logic] Action received: '%s'", action)
+def _handle_marker_payload(self, payload: dict) -> None:
+    raw_action = payload["action"]
+    logger.info("[Logic] Action received: '%s'", raw_action)
 
-        if action == "Eye_Closed":
-            self.is_eye_closed = True
-            logger.info("[Logic] Eye closed. Pausing processing (preprocessor will return None).")
-            return
+    action = raw_action
+    param = None
 
-        if action == "Eye_Opened":
-            self.is_eye_closed = False
-            logger.info("[Logic] Eye opened. Resuming processing.")
-            return
+    if ":" in raw_action:
+        action, param_str = raw_action.split(":", 1)
+        try:
+            param = float(param_str)
+        except ValueError:
+            param = None
 
-        if "Set_Target_Frequency" in action:
-            match = re.search(r'[\d\.]+', action)
-            if match:
-                try:
-                    freq = float(match.group())
-                    self.target_freq = freq
-                    self._detector.target_freq = freq
-                    logger.info("[Logic] Target frequency set to %.2f Hz", freq)
-                except ValueError:
-                    self.target_freq = 15.0
-                    self._detector.target_freq = 15.0
-                    logger.warning("[Logic] Invalid frequency in '%s', defaulting to 15.0 Hz", action)
-            else:
+    # -------------------------
+    # 1. Eye control
+    # -------------------------
+    if action == "Eye_Closed":
+        self.is_eye_closed = True
+        logger.info("[Logic] Eye closed. Pausing processing.")
+        return
+
+    if action == "Eye_Opened":
+        self.is_eye_closed = False
+        logger.info("[Logic] Eye opened. Resuming processing.")
+        return
+
+    # -------------------------
+    # 2. Frequency control
+    # -------------------------
+    if "Set_Target_Frequency" in action:
+        match = re.search(r'[\d\.]+', action)
+        if match:
+            try:
+                freq = float(match.group())
+                self.target_freq = freq
+                self._detector.target_freq = freq
+                logger.info("[Logic] Target frequency set to %.2f Hz", freq)
+            except ValueError:
                 self.target_freq = 15.0
                 self._detector.target_freq = 15.0
-                logger.info("[Logic] No frequency found in '%s', defaulting to 15.0 Hz", action)
-            return
+        return
+
+    # -------------------------
+    # 3. Predict Start (SPECIAL CASE)
+    # -------------------------
+    if action == "Predict_Start":
+        if param is not None:
+            self.current_prediction_window = param
+            logger.info("[Logic] Prediction window set to %.2f sec", param)
 
         new_state = self._state_machine.get_next_state(action)
-
-        if new_state is not None:
-            if self._get_state() == BCIState.SSVEP_TEST and new_state == BCIState.IDLE:
-                self._finalize_flicker()
-            else:
-                with self._unity_event_lock:
-                    self._last_unity_event = payload["event"]
-                    self._last_unity_detail = payload["detail"]
+        if new_state:
             self._set_state(new_state)
-            return
+        return
 
-        if action == "Train_End":
-            self._attempt_training()
-            self._set_state(BCIState.IDLE)
-            return
+    # -------------------------
+    # 4. Train End (SPECIAL CASE)
+    # -------------------------
+    if action == "Train_End":
+        self._attempt_training()
+        self._set_state(BCIState.IDLE)
+        return
 
-        logger.debug("[Logic] Unrecognised action: '%s' - ignored.", action)
+    # -------------------------
+    # 5. Default state machine
+    # -------------------------
+    new_state = self._state_machine.get_next_state(action)
+
+    if new_state is not None:
+        if self._get_state() == BCIState.SSVEP_TEST and new_state == BCIState.IDLE:
+            self._finalize_flicker()
+        else:
+            with self._unity_event_lock:
+                self._last_unity_event = payload["event"]
+                self._last_unity_detail = payload["detail"]
+
+        self._set_state(new_state)
+        return
+
+    logger.debug("[Logic] Unrecognised action: '%s'", raw_action)
 
     def _process_epoch(self, epoch: np.ndarray, state: str) -> None:
         processed = preprocess_global(epoch, self.sfreq, is_eye_closed=self.is_eye_closed, current_state=state)
@@ -290,48 +314,14 @@ class BCIBackend:
             if n >= self.n_train_epochs:
                 logger.info("[Logic] TRAIN_ACTIVE_OBJ2 buffer full - sliding window ready.")
 
-        elif state == BCIState.TRAIN_IMAGERY_OBJ1:
-            self.imagery_obj1_epochs.append(epoch.copy())
-            n = len(self.imagery_obj1_epochs)
-            logger.info("[Logic] TRAIN_IMAGERY_OBJ1 sliding window: %d/%d epochs buffered.", n, self.n_train_epochs)
-            if n >= self.n_train_epochs:
-                logger.info("[Logic] TRAIN_IMAGERY_OBJ1 buffer full - sliding window ready.")
-
-        elif state == BCIState.TRAIN_IMAGERY_OBJ2:
-            self.imagery_obj2_epochs.append(epoch.copy())
-            n = len(self.imagery_obj2_epochs)
-            logger.info("[Logic] TRAIN_IMAGERY_OBJ2 sliding window: %d/%d epochs buffered.", n, self.n_train_epochs)
-            if n >= self.n_train_epochs:
-                logger.info("[Logic] TRAIN_IMAGERY_OBJ2 buffer full - sliding window ready.")
-
-        elif state == BCIState.PREDICT_ACTIVE:
+       
+        elif state == BCIState.PREDICT:
             if self.active_model.is_trained:
                 pred, conf = self.active_model.predict(epoch)
                 self._accumulate_and_push(pred, conf, "ACTIVE", "None", 0.0, unity_event, unity_detail)
             else:
                 logger.warning("[Logic] ACTIVE model not trained.")
 
-        elif state == BCIState.PREDICT_IMAGERY:
-            if self.imagery_model.is_trained:
-                pred, conf = self.imagery_model.predict(epoch)
-                self._accumulate_and_push(pred, conf, "IMAGERY", "None", 0.0, unity_event, unity_detail)
-            else:
-                logger.warning("[Logic] IMAGERY model not trained.")
-
-        elif state == BCIState.PREDICT_MIXED:
-            if self.mixed_model.is_trained:
-                pred_mixed, conf_mixed = self.mixed_model.predict(epoch)
-                
-                pred_imagery_str = "None"
-                conf_imagery = 0.0
-                if self.imagery_model.is_trained:
-                    pred_im, conf_im = self.imagery_model.predict(epoch)
-                    pred_imagery_str = "OBJ1" if pred_im == 0 else "OBJ2"
-                    conf_imagery = conf_im
-                
-                self._accumulate_and_push(pred_mixed, conf_mixed, "MIXED", pred_imagery_str, conf_imagery, unity_event, unity_detail)
-            else:
-                logger.warning("[Logic] MIXED model not trained.")
 
     def _accumulate_and_push(self, pred: int, conf: float, model_name: str, imagery_str: str, imagery_conf: float, unity_event: str, unity_detail: str) -> None:
         self._predict_accumulator.append(pred, conf, imagery_str, imagery_conf)
