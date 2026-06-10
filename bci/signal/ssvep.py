@@ -37,7 +37,7 @@ class SSVEPDetector:
         self,
         target_freq: float,
         sfreq: float = 125.0,
-        n_harmonics: int = 3,
+        n_harmonics: int = 4,
         occipital_channels: List[int] | None = None,
         detection_threshold: float = 0.5,
         filter_order: int = 4,

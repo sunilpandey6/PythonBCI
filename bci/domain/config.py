@@ -13,7 +13,7 @@ class BCIConfig:
     n_train_epochs: int = 20
     detection_threshold: float = 0.4
     resolve_timeout: float = 10.0
-    predict_accumulation_time: float = 3.0
+    predict_accumulation_time: float = 4.0
     predict_agreement_threshold: float = 0.75
     predict_confidence_threshold: float = 0.7
     eeg_stream_name: Optional[str] = None
