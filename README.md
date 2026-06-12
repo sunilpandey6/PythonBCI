@@ -392,6 +392,8 @@ cd /path/to/PythonBCI
 python3 -m venv .venv
 source .venv/bin/activate        # macOS / Linux
 # .venv\Scripts\activate         # Windows
+# .\venv\Scripts\Activate.ps1    # Powershell
+# venv\Scripts\activate.bat      # CMD
 
 # 3. Install all dependencies
 pip install numpy scipy pylsl mne scikit-learn

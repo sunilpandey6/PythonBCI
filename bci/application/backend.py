@@ -127,6 +127,7 @@ class BCIBackend:
             else:
                 sample_list = self._lsl_manager.pull_eeg_sample(timeout=1.0)
                 if sample_list is None:
+                    logger.info("----------------------------EEG sample out---------------------------")
                     continue
                 sample = np.array(sample_list, dtype=np.float32)
 
@@ -167,7 +168,7 @@ class BCIBackend:
                 payload = {"action": action_str, "event": event_str, "detail": detail_str}
                 self._marker_queue.put_nowait(payload)
 
-            time.sleep(0.001)
+            # time.sleep(0.001)
 
         logger.info("[Thread-Marker] stopped.")
 
@@ -314,6 +315,8 @@ class BCIBackend:
             logger.info("[Logic] TRAIN_ACTIVE_OBJ1 sliding window: %d/%d epochs buffered.", n, self.n_train_epochs)
             if n >= self.n_train_epochs:
                 logger.info("[Logic] TRAIN_ACTIVE_OBJ1 buffer full - sliding window ready.")
+            elif n == 0:
+                logger.info("-------------------------no epoch D1 -------------------------")
 
         elif state == BCIState.TRAIN_ACTIVE_OBJ2:
             self.active_obj2_epochs.append(epoch.copy())
@@ -321,6 +324,8 @@ class BCIBackend:
             logger.info("[Logic] TRAIN_ACTIVE_OBJ2 sliding window: %d/%d epochs buffered.", n, self.n_train_epochs)
             if n >= self.n_train_epochs:
                 logger.info("[Logic] TRAIN_ACTIVE_OBJ2 buffer full - sliding window ready.")
+            elif n == 0:
+                logger.info("-------------------------no epoch D2 -------------------------")
 
        
         elif state == BCIState.PREDICT:

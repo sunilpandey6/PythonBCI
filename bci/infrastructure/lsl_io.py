@@ -12,7 +12,7 @@ except ImportError:
       logger.warning("pylsl not found. Running in SIMULATION mode - no real LSL streams.")
 
 class LslManager:
-      def __init__(self, resolve_timeout: float = 30.0) -> None:
+      def __init__(self, resolve_timeout: float = 10.0) -> None:
           self.resolve_timeout = resolve_timeout
           self._eeg_inlet: Optional[StreamInlet] = None
           self._marker_inlet: Optional[StreamInlet] = None

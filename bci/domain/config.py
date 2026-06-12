@@ -11,10 +11,10 @@ class BCIConfig:
     sfreq: float = DEFAULT_SFREQ
     epoch_duration: float = 1.0
     n_train_epochs: int = 20
-    detection_threshold: float = 0.4
+    detection_threshold: float = 0.67
     resolve_timeout: float = 10.0
     predict_accumulation_time: float = 4.0
     predict_agreement_threshold: float = 0.75
-    predict_confidence_threshold: float = 0.7
+    predict_confidence_threshold: float = 0.67
     eeg_stream_name: Optional[str] = None
     marker_stream_name: Optional[str] = None
