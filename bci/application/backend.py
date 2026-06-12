@@ -89,14 +89,15 @@ class BCIBackend:
 
     def start(self) -> None:
         logger.info("BCIBackend starting …")
-        self._lsl_manager.resolve_streams()
+        
         self._lsl_manager.setup_output_stream(
             name="BCIBackend",
             stream_type="BCIResult",
             channel_count=1,
             source_id="bci_backend_001",
         )
-
+        self._lsl_manager.resolve_streams()
+        
         t1 = threading.Thread(target=self._eeg_ingestion_loop, name="Thread-EEG", daemon=True)
         t2 = threading.Thread(target=self._marker_ingestion_loop, name="Thread-Marker", daemon=True)
         t3 = threading.Thread(target=self._logic_loop, name="Thread-Logic", daemon=True)
