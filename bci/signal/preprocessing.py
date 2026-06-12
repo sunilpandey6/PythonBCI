@@ -7,10 +7,10 @@ STATE_BANDPASS_MAP = {
     "TRAIN_ACTIVE_OBJ1": (3.0, 60.0),
     "TRAIN_ACTIVE_OBJ2": (3.0, 60.0),
     "PREDICT_ACTIVE": (3.0, 60.0),
-    "TRAIN_IMAGERY_OBJ1": (3.0, 90.0),
-    "TRAIN_IMAGERY_OBJ2": (3.0, 90.0),
-    "PREDICT_IMAGERY": (3.0, 90.0),
-    "PREDICT_MIXED": (3.0, 90.0),
+    # "TRAIN_IMAGERY_OBJ1": (3.0, 90.0),
+    # "TRAIN_IMAGERY_OBJ2": (3.0, 90.0),
+    # "PREDICT_IMAGERY": (3.0, 90.0),
+    # "PREDICT_MIXED": (3.0, 90.0),
 }
 
 def preprocess_global(
