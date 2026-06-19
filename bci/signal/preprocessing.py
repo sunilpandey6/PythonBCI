@@ -3,10 +3,10 @@ import numpy as np
 from scipy import signal
 
 STATE_BANDPASS_MAP = {
-    "SSVEP_TEST": (3.0, 60.0),
-    "TRAIN_ACTIVE_OBJ1": (3.0, 60.0),
-    "TRAIN_ACTIVE_OBJ2": (3.0, 60.0),
-    "PREDICT_ACTIVE": (3.0, 60.0),
+    "SSVEP_TEST": (3.0, 50.0),
+    "TRAIN_ACTIVE_OBJ1": (3.0, 50.0),
+    "TRAIN_ACTIVE_OBJ2": (3.0, 50.0),
+    "PREDICT_ACTIVE": (3.0, 50.0),
     # "TRAIN_IMAGERY_OBJ1": (3.0, 90.0),
     # "TRAIN_IMAGERY_OBJ2": (3.0, 90.0),
     # "PREDICT_IMAGERY": (3.0, 90.0),
