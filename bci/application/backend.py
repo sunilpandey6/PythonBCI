@@ -7,6 +7,9 @@ import threading
 import time
 from typing import List, Optional
 
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+
 import numpy as np
 
 from bci.domain.config import BCIConfig
@@ -383,6 +386,26 @@ class BCIBackend:
             X_a = act_obj1 + act_obj2
             y_a = [0] * len(act_obj1) + [1] * len(act_obj2)
             self.active_model.train(X_a, y_a)
+
+            X_train, X_test, y_train, y_test = train_test_split(X_a,y_a,test_size=0.2,random_state=42,stratify=y_a)
+            testmodel = ImageryClassifier(sfreq=self.sfreq, n_channels=N_CHANNELS)
+            testmodel.train(X_train, y_train)
+
+            preds = []
+            for epoch in X_test:
+                pred, conf = testmodel.predict(epoch)
+                preds.append(pred)
+
+            acc = accuracy_score(y_test, preds)
+            logger.info("------------------------------------------")
+            logger.info(
+                "[Training] Test accuracy: %.2f%% (%d/%d)",
+                acc * 100,
+                int(acc * len(y_test)),
+                len(y_test)
+            )
+            logger.info("------------------------------------------")
+
         else:
             logger.warning("[Logic] ACTIVE training skipped - insufficient epochs (OBJ1: %d, OBJ2: %d, need: %d).",
                            len(act_obj1), len(act_obj2), self.n_train_epochs)
